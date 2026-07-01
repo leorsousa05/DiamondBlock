@@ -7,6 +7,7 @@ import {
   KimiMcpInstaller,
   KimiCodeMcpInstaller,
   CursorMcpInstaller,
+  AgyMcpInstaller,
   createDefaultInstallers,
 } from './json_file_installer.js';
 import { readFile } from 'node:fs/promises';
@@ -96,6 +97,31 @@ describe('InstallMcpUseCase', () => {
     expect(results[0]?.installed).toBe(true);
 
     const raw = await readFile(cursorConfigPath, 'utf-8');
+    const config = JSON.parse(raw);
+    expect(config.mcpServers.diamondblock).toEqual({
+      command: 'node',
+      args: ['/path/to/server.js'],
+    });
+  });
+
+  it('installs mcp config for agy agent in gemini/antigravity directory', async () => {
+    const agyConfigPath = join(basePath, '.gemini', 'antigravity', 'mcp.json');
+    mkdirSync(dirname(agyConfigPath), { recursive: true });
+
+    const installer = new AgyMcpInstaller();
+    (installer as unknown as { configPath: () => string }).configPath = () => agyConfigPath;
+
+    const useCase = new InstallMcpUseCase([installer]);
+    const results = await useCase.execute({
+      serverConfig: {
+        command: 'node',
+        args: ['/path/to/server.js'],
+      },
+    });
+
+    expect(results[0]?.installed).toBe(true);
+
+    const raw = await readFile(agyConfigPath, 'utf-8');
     const config = JSON.parse(raw);
     expect(config.mcpServers.diamondblock).toEqual({
       command: 'node',

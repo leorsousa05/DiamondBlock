@@ -129,7 +129,7 @@ export class CodexMcpInstaller extends JsonFileMcpInstaller {
 export class AgyMcpInstaller extends JsonFileMcpInstaller {
   readonly agent = 'agy';
   protected configPath(): string {
-    return join(homedir(), '.gemini', 'mcp.json');
+    return join(homedir(), '.gemini', 'antigravity', 'mcp.json');
   }
   protected serverKey(): string {
     return 'diamondblock';
