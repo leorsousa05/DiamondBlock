@@ -53,15 +53,34 @@ export class SqliteVectorIndex implements VectorIndex {
     `);
 
     const insertVec = db.prepare(`
-      INSERT OR REPLACE INTO vec_memories (memory_id, embedding)
+      INSERT INTO vec_memories (memory_id, embedding)
       VALUES (?, ?)
+    `);
+
+    const updateVec = db.prepare(`
+      UPDATE vec_memories SET embedding = ? WHERE memory_id = ?
+    `);
+
+    const deleteVec = db.prepare(`
+      DELETE FROM vec_memories WHERE memory_id = ?
     `);
 
     const vectorJson = JSON.stringify(embedding);
 
     const transaction = db.transaction(() => {
       insertMemory.run(memory.id, memory.type, memory.scope, memory.title, memory.source);
-      insertVec.run(memory.id, vectorJson);
+
+      const existing = db.prepare('SELECT 1 FROM vec_memories WHERE memory_id = ?').get(memory.id);
+      if (existing) {
+        try {
+          updateVec.run(vectorJson, memory.id);
+        } catch {
+          deleteVec.run(memory.id);
+          insertVec.run(memory.id, vectorJson);
+        }
+      } else {
+        insertVec.run(memory.id, vectorJson);
+      }
     });
 
     transaction();

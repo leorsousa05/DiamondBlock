@@ -1,9 +1,9 @@
-import { mkdir, readFile, writeFile, rm, access } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
-import type { Memory, MemoryType } from '../domain/memory.js';
+import type { Memory } from '../domain/memory.js';
 import type { ListOptions, MemoryRepository, SearchOptions } from '../application/ports/memory_repository.js';
 import { memoryToMarkdown, memoryFromMarkdown } from './markdown_serializer.js';
-import { isNotFoundError, walkDirectory } from './file_system.js';
+import { walkDirectory } from './file_system.js';
 
 export interface FileMemoryRepositoryOptions {
   basePath: string;
@@ -17,15 +17,12 @@ export class FileMemoryRepository implements MemoryRepository {
   }
 
   async findById(id: string): Promise<Memory | null> {
-    const path = this.idToPath(id);
-    try {
-      await access(path);
-      const raw = await readFile(path, 'utf-8');
-      return memoryFromMarkdown(id, raw);
-    } catch (error) {
-      if (isNotFoundError(error)) return null;
-      throw error;
-    }
+    const files = await walkDirectory(this.memoryDir);
+    const path = files.find((file) => file.endsWith('/' + id + '.md') || file.endsWith(id + '.md'));
+    if (!path) return null;
+
+    const raw = await readFile(path, 'utf-8');
+    return memoryFromMarkdown(id, raw);
   }
 
   async search(options: SearchOptions): Promise<Memory[]> {
@@ -61,7 +58,9 @@ export class FileMemoryRepository implements MemoryRepository {
   }
 
   async delete(id: string): Promise<void> {
-    const path = this.idToPath(id);
+    const files = await walkDirectory(this.memoryDir);
+    const path = files.find((file) => file.endsWith('/' + id + '.md') || file.endsWith(id + '.md'));
+    if (!path) return;
     await rm(path, { force: true });
   }
 
@@ -81,13 +80,15 @@ export class FileMemoryRepository implements MemoryRepository {
     return memories.slice(offset, offset + limit);
   }
 
-  private idToPath(id: string): string {
-    const fileName = `${id}.md`;
-    return join(this.memoryDir, fileName);
+  private resolvePath(memory: Memory): string {
+    return join(this.memoryDir, this.memorySubdir(memory), `${memory.id}.md`);
   }
 
-  private resolvePath(memory: Memory): string {
-    return this.idToPath(memory.id);
+  private memorySubdir(memory: Memory): string {
+    if (memory.type === 'project' && memory.scope.startsWith('project/')) {
+      return join('project', memory.scope.replace('project/', ''));
+    }
+    return memory.type;
   }
 
   private async listAll(): Promise<Memory[]> {

@@ -71,7 +71,29 @@ npx diamondblock status
 
 ## Configure MCP for Kimi Code
 
-Create or edit `~/.kimi/mcp.json`:
+The fastest way to wire DiamondBlock into your agents is the built-in installer:
+
+```bash
+npx diamondblock install mcp
+```
+
+This detects supported agents on your machine and writes the correct MCP config for each one. Run with `--dry-run` to preview what would change:
+
+```bash
+npx diamondblock install mcp --dry-run
+```
+
+Install for a single agent only:
+
+```bash
+npx diamondblock install mcp --target kimi
+```
+
+Supported agents: `kimi`, `kimi-code`, `claude`, `codex`, `agy`, `cursor`, `windsurf`, `cline`, `aider`, `zed`, `continue`.
+
+### Manual configuration
+
+If you prefer to configure Kimi Code by hand, create or edit `~/.kimi/mcp.json`:
 
 ```json
 {
@@ -148,6 +170,10 @@ Distill unprocessed sessions into memories.
 ### `diamondblock status`
 
 Show vault statistics: path, embedding provider, memory count, and session count.
+
+### `diamondblock install mcp [--target <agent>] [--dry-run]`
+
+Install DiamondBlock as an MCP server for detected agents. Use `--dry-run` to preview and `--target` to install for a single agent.
 
 ## MCP tools reference
 
