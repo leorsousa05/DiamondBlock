@@ -69,7 +69,7 @@ Show the current status:
 npx diamondblock status
 ```
 
-## Configure MCP for Kimi Code
+## Configure MCP for coding agents
 
 The fastest way to wire DiamondBlock into your agents is the built-in installer:
 
@@ -89,9 +89,9 @@ Install for a single agent only:
 npx diamondblock install mcp --target kimi
 ```
 
-Supported agents: `kimi`, `kimi-code`, `claude`, `codex`, `agy`, `cursor`, `windsurf`, `cline`, `aider`, `zed`, `continue`.
+Supported agents: `kimi`, `kimi-code`, `claude`, `codex`, `agy`, `cursor`, `windsurf`, `cline`, `continue`.
 
-### Manual configuration
+### Manual configuration for Kimi Code
 
 If you prefer to configure Kimi Code by hand, create or edit `~/.kimi/mcp.json`:
 
@@ -111,7 +111,17 @@ If you prefer to configure Kimi Code by hand, create or edit `~/.kimi/mcp.json`:
 }
 ```
 
-Replace `/path/to/diamondblock` with the absolute path to this repository.
+| Agent | Config file |
+|-------|-------------|
+| `kimi` | `~/.kimi/mcp.json` |
+| `kimi-code` | `~/.kimi-code/mcp.json` |
+| `claude` | `~/.claude/claude_desktop_config.json` |
+| `codex` | `~/.codex/mcp.json` |
+| `agy` | `~/.gemini/config/mcp_config.json` |
+| `cursor` | `~/.cursor/mcp.json` |
+| `windsurf` | `~/.codeium/windsurf/mcp_config.json` |
+| `cline` | `~/.cline/mcp.json` |
+| `continue` | `~/.continue/config.json` |
 
 ### OpenAI embeddings (optional)
 

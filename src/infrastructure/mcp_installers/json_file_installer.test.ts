@@ -7,6 +7,7 @@ import {
   KimiMcpInstaller,
   KimiCodeMcpInstaller,
   CursorMcpInstaller,
+  WindsurfMcpInstaller,
   AgyMcpInstaller,
   createDefaultInstallers,
 } from './json_file_installer.js';
@@ -104,8 +105,8 @@ describe('InstallMcpUseCase', () => {
     });
   });
 
-  it('installs mcp config for agy agent in gemini/antigravity directory', async () => {
-    const agyConfigPath = join(basePath, '.gemini', 'antigravity', 'mcp.json');
+  it('installs mcp config for agy agent in gemini config directory', async () => {
+    const agyConfigPath = join(basePath, '.gemini', 'config', 'mcp_config.json');
     mkdirSync(dirname(agyConfigPath), { recursive: true });
 
     const installer = new AgyMcpInstaller();
@@ -122,6 +123,31 @@ describe('InstallMcpUseCase', () => {
     expect(results[0]?.installed).toBe(true);
 
     const raw = await readFile(agyConfigPath, 'utf-8');
+    const config = JSON.parse(raw);
+    expect(config.mcpServers.diamondblock).toEqual({
+      command: 'node',
+      args: ['/path/to/server.js'],
+    });
+  });
+
+  it('installs mcp config for windsurf agent', async () => {
+    const windsurfConfigPath = join(basePath, '.codeium', 'windsurf', 'mcp_config.json');
+    mkdirSync(dirname(windsurfConfigPath), { recursive: true });
+
+    const installer = new WindsurfMcpInstaller();
+    (installer as unknown as { configPath: () => string }).configPath = () => windsurfConfigPath;
+
+    const useCase = new InstallMcpUseCase([installer]);
+    const results = await useCase.execute({
+      serverConfig: {
+        command: 'node',
+        args: ['/path/to/server.js'],
+      },
+    });
+
+    expect(results[0]?.installed).toBe(true);
+
+    const raw = await readFile(windsurfConfigPath, 'utf-8');
     const config = JSON.parse(raw);
     expect(config.mcpServers.diamondblock).toEqual({
       command: 'node',
