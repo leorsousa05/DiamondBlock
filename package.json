@@ -1,0 +1,57 @@
+{
+  "name": "diamondblock",
+  "version": "0.1.0",
+  "description": "Local-first semantic memory server for AI coding agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "diamondblock": "dist/presentation/cli/index.js",
+    "dblock": "dist/presentation/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/presentation/cli/index.ts",
+    "cli": "tsx src/presentation/cli/index.ts",
+    "mcp": "tsx src/presentation/mcp/server.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "ai",
+    "memory",
+    "knowledge-base"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "better-sqlite3": "^11.5.0",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "gray-matter": "^4.0.3",
+    "nanoid": "^5.0.9",
+    "ora": "^8.1.1",
+    "sqlite-vec": "^0.1.6",
+    "yaml": "^2.6.1",
+    "zod": "^3.23.8",
+    "@xenova/transformers": "^2.17.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.2.6",
+    "vitest": "^3.2.6"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "overrides": {
+    "protobufjs": "^7.6.3"
+  }
+}
