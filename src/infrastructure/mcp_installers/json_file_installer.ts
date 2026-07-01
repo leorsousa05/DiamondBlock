@@ -129,7 +129,7 @@ export class CodexMcpInstaller extends JsonFileMcpInstaller {
 export class AgyMcpInstaller extends JsonFileMcpInstaller {
   readonly agent = 'agy';
   protected configPath(): string {
-    return join(homedir(), '.gemini', 'antigravity', 'mcp.json');
+    return join(homedir(), '.gemini', 'config', 'mcp_config.json');
   }
   protected serverKey(): string {
     return 'diamondblock';
@@ -155,7 +155,7 @@ export class CursorMcpInstaller extends JsonFileMcpInstaller {
 export class WindsurfMcpInstaller extends JsonFileMcpInstaller {
   readonly agent = 'windsurf';
   protected configPath(): string {
-    return join(homedir(), '.windsurf', 'mcp.json');
+    return join(homedir(), '.codeium', 'windsurf', 'mcp_config.json');
   }
   protected serverKey(): string {
     return 'diamondblock';
@@ -175,32 +175,6 @@ export class ClineMcpInstaller extends JsonFileMcpInstaller {
   }
   protected detectedCommands(): string[] {
     return ['cline'];
-  }
-}
-
-export class AiderMcpInstaller extends JsonFileMcpInstaller {
-  readonly agent = 'aider';
-  protected configPath(): string {
-    return join(homedir(), '.aider', 'mcp.json');
-  }
-  protected serverKey(): string {
-    return 'diamondblock';
-  }
-  protected detectedCommands(): string[] {
-    return ['aider'];
-  }
-}
-
-export class ZedMcpInstaller extends JsonFileMcpInstaller {
-  readonly agent = 'zed';
-  protected configPath(): string {
-    return join(homedir(), '.zed', 'mcp.json');
-  }
-  protected serverKey(): string {
-    return 'diamondblock';
-  }
-  protected detectedCommands(): string[] {
-    return ['zed'];
   }
 }
 
@@ -227,8 +201,6 @@ export function createDefaultInstallers(): McpInstaller[] {
     new CursorMcpInstaller(),
     new WindsurfMcpInstaller(),
     new ClineMcpInstaller(),
-    new AiderMcpInstaller(),
-    new ZedMcpInstaller(),
     new ContinueMcpInstaller(),
   ];
 }
