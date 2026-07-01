@@ -1,8 +1,27 @@
-# DiamondBlock
+<p align="center">
+  <picture>
+    <img src="assets/diamondblock-logo.png" width="220" alt="DiamondBlock — diamond ore block">
+  </picture>
+</p>
 
-Local-first semantic memory server for AI coding agents.
+<h1 align="center">DiamondBlock</h1>
 
-DiamondBlock keeps what matters between coding sessions: your preferences, project decisions, and distilled conversation context. It speaks the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) so agents like Claude Code, Kimi Code, and AGY can remember without leaking data to the cloud.
+<p align="center">
+  <em>Local-first semantic memory server for AI coding agents.</em>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js 20+">
+  <img src="https://img.shields.io/badge/MCP-stdio-6B4C9A?style=flat-square" alt="MCP stdio">
+  <img src="https://img.shields.io/badge/license-MIT-111111?style=flat-square" alt="MIT license">
+</p>
+
+<p align="center">
+  <strong>Private &middot; Semantic &middot; Persistent</strong><br>
+  <sub>DiamondBlock keeps what matters between coding sessions — your preferences, project decisions, and distilled conversation context — without leaking data to the cloud.</sub>
+</p>
+
+---
 
 ## Features
 
@@ -11,6 +30,7 @@ DiamondBlock keeps what matters between coding sessions: your preferences, proje
 - **Semantic search:** local embeddings with `Xenova/all-MiniLM-L6-v2`, with optional OpenAI fallback.
 - **Human CLI:** manage memories and sessions from the terminal with rich tables, colors, and spinners.
 - **Session distillation:** raw session logs are distilled into curated memories automatically.
+- **Agent friendly:** works with Claude Code, Kimi Code, AGY, and any MCP-compatible agent.
 
 ## Install
 
