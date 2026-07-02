@@ -1,6 +1,7 @@
 <p align="center">
   <picture>
-    <img src="assets/diamondblock-logo.png" width="220" alt="DiamondBlock — diamond ore block">
+    <source srcset="assets/diamondblock-logo.webp" type="image/webp">
+    <img src="assets/diamondblock-logo.png" width="220" height="124" alt="DiamondBlock — diamond ore block">
   </picture>
 </p>
 
