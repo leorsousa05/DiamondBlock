@@ -24,6 +24,8 @@ import { DeleteMemoryUseCase } from '../../application/use_cases/delete_memory.j
 import { DistillSessionsUseCase } from '../../application/use_cases/distill_sessions.js';
 import { memoryToMarkdown, memoryFromMarkdown } from '../../infrastructure/markdown_serializer.js';
 import { UpdateMemoryUseCase } from '../../application/use_cases/update_memory.js';
+import { LocalEnrichmentProvider } from '../../infrastructure/local_enrichment_provider.js';
+import { MemoryEnrichmentService } from '../../domain/services/memory_enrichment.js';
 
 const program = new Command();
 
@@ -59,6 +61,14 @@ async function loadContainer(vaultPath?: string) {
   const sessionRepository = new FileSessionRepository({ basePath });
   const vectorIndex = new SqliteVectorIndex({ dbPath: join(basePath, 'index', 'embeddings.sqlite') });
   const embeddingProvider = createEmbeddingProvider(config);
+  const enrichmentProvider = new LocalEnrichmentProvider();
+  const enrichmentService = new MemoryEnrichmentService(
+    memoryRepository,
+    vectorIndex,
+    embeddingProvider,
+    enrichmentProvider,
+    { confidenceThreshold: 0.5, maxTags: 10, maxEntities: 10 }
+  );
 
   setContainer({
     memoryRepository,
@@ -66,9 +76,10 @@ async function loadContainer(vaultPath?: string) {
     vectorIndex,
     embeddingProvider,
     configStore,
+    enrichmentService,
   });
 
-  return { basePath, configStore, embeddingProvider };
+  return { basePath, configStore, embeddingProvider, enrichmentService };
 }
 
 program
@@ -172,7 +183,7 @@ memoryCmd
   .option('--content <content>')
   .option('--tag <tag>', 'tags', [])
   .action(async (options) => {
-    const { basePath, embeddingProvider } = await loadContainer();
+    const { basePath, embeddingProvider, enrichmentService } = await loadContainer();
     const tags = Array.isArray(options.tag) ? options.tag : [options.tag].filter(Boolean);
 
     let content = options.content;
@@ -183,7 +194,7 @@ memoryCmd
     const repo = new FileMemoryRepository({ basePath });
     const vectorIndex = new SqliteVectorIndex({ dbPath: join(basePath, 'index', 'embeddings.sqlite') });
 
-    const useCase = new SaveMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    const useCase = new SaveMemoryUseCase(repo, vectorIndex, embeddingProvider, enrichmentService);
     const result = await useCase.execute({
       title: options.title,
       content,
@@ -215,7 +226,7 @@ memoryCmd
   .command('edit <id>')
   .description('Edit a memory in your default editor')
   .action(async (id: string) => {
-    const { basePath, embeddingProvider } = await loadContainer();
+    const { basePath, embeddingProvider, enrichmentService } = await loadContainer();
     const repo = new FileMemoryRepository({ basePath });
     const memory = await repo.findById(id);
 
@@ -229,7 +240,7 @@ memoryCmd
 
     const vectorIndex = new SqliteVectorIndex({ dbPath: join(basePath, 'index', 'embeddings.sqlite') });
 
-    const useCase = new UpdateMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    const useCase = new UpdateMemoryUseCase(repo, vectorIndex, embeddingProvider, enrichmentService);
     await useCase.execute({
       id,
       title: parsed.title,

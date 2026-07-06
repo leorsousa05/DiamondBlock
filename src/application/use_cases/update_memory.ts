@@ -2,6 +2,7 @@ import { updateMemory, type MemoryInput } from '../../domain/memory.js';
 import type { MemoryRepository } from '../ports/memory_repository.js';
 import type { VectorIndex } from '../ports/vector_index.js';
 import type { EmbeddingProvider } from '../ports/embedding_provider.js';
+import type { MemoryEnrichmentService } from '../../domain/services/memory_enrichment.js';
 
 export interface UpdateMemoryInput {
   id: string;
@@ -18,7 +19,8 @@ export class UpdateMemoryUseCase {
   constructor(
     private readonly memoryRepository: MemoryRepository,
     private readonly vectorIndex: VectorIndex,
-    private readonly embeddingProvider: EmbeddingProvider
+    private readonly embeddingProvider: EmbeddingProvider,
+    private readonly enrichmentService?: MemoryEnrichmentService
   ) {}
 
   async execute(input: UpdateMemoryInput): Promise<void> {
@@ -47,5 +49,9 @@ export class UpdateMemoryUseCase {
       const embedding = await this.embeddingProvider.embed(text);
       await this.vectorIndex.index(memory, embedding);
     }
+
+    this.enrichmentService?.enrich(memory).catch((error) => {
+      console.error(`Enrichment failed for memory ${memory.id}:`, error);
+    });
   }
 }

@@ -10,6 +10,7 @@ DiamondBlock é um servidor MCP de memória persistente, semântica e auto-curad
 
 - **Memory System**: armazena memórias de usuário, projeto, conhecimento e destiladas em Markdown + frontmatter.
 - **Vector Index**: índice vetorial local SQLite (`sqlite-vec`) para busca semântica.
+- **Metadata Enrichment**: enriquecimento assíncrono e local de memórias com tags, entidades e resumo, usando regras heurísticas e busca por similaridade.
 - **MCP Server**: expõe tools via stdio para agents.
 - **CLI**: interface humana para gerenciar memórias e sessões.
 - **Distiller**: destila logs de sessão em memórias curadas.
@@ -32,7 +33,7 @@ DiamondBlock é um servidor MCP de memória persistente, semântica e auto-curad
 
 ## Status
 
-Implementação inicial completa e testada. README inicial criado. Layout do vault alinhado com a implementação atual (um arquivo Markdown por memória).
+Implementação inicial completa e testada. Enriquecimento automático de metadados implementado (spec 004). README inicial criado. Layout do vault alinhado com a implementação atual (um arquivo Markdown por memória).
 
 ## Deferred
 

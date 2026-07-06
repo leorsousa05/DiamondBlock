@@ -11,6 +11,8 @@ export interface Memory {
   source: string;
   tags: string[];
   confidence: number;
+  summary?: string;
+  entities?: string[];
 }
 
 export interface MemoryInput {
@@ -21,6 +23,8 @@ export interface MemoryInput {
   source?: string;
   tags?: string[];
   confidence?: number;
+  summary?: string;
+  entities?: string[];
 }
 
 export function createMemory(input: MemoryInput, id?: string): Memory {
@@ -36,6 +40,8 @@ export function createMemory(input: MemoryInput, id?: string): Memory {
     source: input.source ?? 'manual',
     tags: input.tags ?? [],
     confidence: input.confidence ?? 1.0,
+    ...(input.summary !== undefined && { summary: input.summary }),
+    ...(input.entities !== undefined && { entities: input.entities }),
   };
 }
 
@@ -49,6 +55,8 @@ export function updateMemory(memory: Memory, updates: Partial<MemoryInput>): Mem
     ...(updates.source && { source: updates.source }),
     ...(updates.tags && { tags: updates.tags }),
     ...(updates.confidence !== undefined && { confidence: updates.confidence }),
+    ...(updates.summary !== undefined && { summary: updates.summary }),
+    ...(updates.entities !== undefined && { entities: updates.entities }),
     updatedAt: new Date(),
   };
 }

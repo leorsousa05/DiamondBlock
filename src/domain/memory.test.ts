@@ -17,6 +17,20 @@ describe('createMemory', () => {
     expect(memory.confidence).toBe(1);
     expect(memory.id.startsWith('mem_')).toBe(true);
   });
+
+  it('creates a memory with optional summary and entities', () => {
+    const memory = createMemory({
+      type: 'knowledge',
+      scope: 'global',
+      title: 'Test',
+      content: 'Content',
+      summary: 'A test memory.',
+      entities: ['TestEntity'],
+    });
+
+    expect(memory.summary).toBe('A test memory.');
+    expect(memory.entities).toEqual(['TestEntity']);
+  });
 });
 
 describe('updateMemory', () => {
@@ -33,6 +47,41 @@ describe('updateMemory', () => {
     expect(updated.title).toBe('New');
     expect(updated.content).toBe('Content');
     expect(updated.updatedAt.getTime()).toBeGreaterThanOrEqual(memory.updatedAt.getTime());
+  });
+
+  it('preserves existing summary and entities when not provided', () => {
+    const memory = createMemory({
+      type: 'knowledge',
+      scope: 'global',
+      title: 'Old',
+      content: 'Content',
+      summary: 'Original summary.',
+      entities: ['OriginalEntity'],
+    });
+
+    const updated = updateMemory(memory, { title: 'New' });
+
+    expect(updated.summary).toBe('Original summary.');
+    expect(updated.entities).toEqual(['OriginalEntity']);
+  });
+
+  it('updates summary and entities when provided', () => {
+    const memory = createMemory({
+      type: 'knowledge',
+      scope: 'global',
+      title: 'Old',
+      content: 'Content',
+      summary: 'Original summary.',
+      entities: ['OriginalEntity'],
+    });
+
+    const updated = updateMemory(memory, {
+      summary: 'New summary.',
+      entities: ['NewEntity'],
+    });
+
+    expect(updated.summary).toBe('New summary.');
+    expect(updated.entities).toEqual(['NewEntity']);
   });
 });
 

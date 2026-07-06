@@ -4,6 +4,7 @@ import type { Memory, MemoryInput } from '../../domain/memory.js';
 import type { MemoryRepository, SearchOptions, ListOptions } from '../ports/memory_repository.js';
 import type { VectorIndex } from '../ports/vector_index.js';
 import type { EmbeddingProvider } from '../ports/embedding_provider.js';
+import type { MemoryEnrichmentService } from '../../domain/services/memory_enrichment.js';
 
 class FakeMemoryRepository implements MemoryRepository {
   private memories = new Map<string, Memory>();
@@ -53,62 +54,62 @@ class FakeEmbeddingProvider implements EmbeddingProvider {
   }
 }
 
+class FakeEnrichmentService implements MemoryEnrichmentService {
+  enriched: Memory[] = [];
+
+  async enrich(memory: Memory): Promise<void> {
+    this.enriched.push(memory);
+  }
+}
+
+const baseMemory = {
+  id: 'mem_abc123',
+  type: 'knowledge' as MemoryInput['type'],
+  scope: 'global',
+  title: 'Original',
+  content: 'Original content',
+  createdAt: new Date('2026-01-01'),
+  updatedAt: new Date('2026-01-01'),
+  source: 'manual',
+  tags: [],
+  confidence: 1.0,
+};
+
 describe('UpdateMemoryUseCase', () => {
   let repo: FakeMemoryRepository;
   let vectorIndex: FakeVectorIndex;
   let embeddingProvider: FakeEmbeddingProvider;
+  let enrichmentService: FakeEnrichmentService;
   let useCase: UpdateMemoryUseCase;
 
   beforeEach(() => {
     repo = new FakeMemoryRepository();
     vectorIndex = new FakeVectorIndex();
     embeddingProvider = new FakeEmbeddingProvider();
-    useCase = new UpdateMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    enrichmentService = new FakeEnrichmentService();
+    useCase = new UpdateMemoryUseCase(repo, vectorIndex, embeddingProvider, enrichmentService);
   });
 
   it('updates title and content and preserves id and createdAt', async () => {
-    const memory = {
-      id: 'mem_abc123',
-      type: 'knowledge' as MemoryInput['type'],
-      scope: 'global',
-      title: 'Original',
-      content: 'Original content',
-      createdAt: new Date('2026-01-01'),
-      updatedAt: new Date('2026-01-01'),
-      source: 'manual',
-      tags: [],
-      confidence: 1.0,
-    };
-    await repo.save(memory);
+    await repo.save(baseMemory);
 
     await useCase.execute({
-      id: memory.id,
+      id: baseMemory.id,
       title: 'Updated',
       content: 'Updated content',
     });
 
-    const updated = await repo.findById(memory.id);
+    const updated = await repo.findById(baseMemory.id);
     expect(updated).not.toBeNull();
-    expect(updated?.id).toBe(memory.id);
+    expect(updated?.id).toBe(baseMemory.id);
     expect(updated?.title).toBe('Updated');
     expect(updated?.content).toBe('Updated content');
-    expect(updated?.createdAt).toEqual(memory.createdAt);
-    expect(updated?.updatedAt.getTime()).toBeGreaterThan(memory.updatedAt.getTime());
+    expect(updated?.createdAt).toEqual(baseMemory.createdAt);
+    expect(updated?.updatedAt.getTime()).toBeGreaterThan(baseMemory.updatedAt.getTime());
   });
 
   it('updates type and scope and triggers repository relocation', async () => {
-    const memory = {
-      id: 'mem_abc123',
-      type: 'knowledge' as MemoryInput['type'],
-      scope: 'global',
-      title: 'Title',
-      content: 'Content',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      source: 'manual',
-      tags: [],
-      confidence: 1.0,
-    };
+    const memory = { ...baseMemory, title: 'Title', content: 'Content' };
     await repo.save(memory);
 
     await useCase.execute({
@@ -124,43 +125,20 @@ describe('UpdateMemoryUseCase', () => {
   });
 
   it('appends content when append is true', async () => {
-    const memory = {
-      id: 'mem_abc123',
-      type: 'knowledge' as MemoryInput['type'],
-      scope: 'global',
-      title: 'Title',
-      content: 'Original',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      source: 'manual',
-      tags: [],
-      confidence: 1.0,
-    };
-    await repo.save(memory);
+    await repo.save(baseMemory);
 
     await useCase.execute({
-      id: memory.id,
+      id: baseMemory.id,
       content: 'Appended',
       append: true,
     });
 
-    const updated = await repo.findById(memory.id);
-    expect(updated?.content).toBe('Original\n\nAppended');
+    const updated = await repo.findById(baseMemory.id);
+    expect(updated?.content).toBe('Original content\n\nAppended');
   });
 
   it('updates tags', async () => {
-    const memory = {
-      id: 'mem_abc123',
-      type: 'knowledge' as MemoryInput['type'],
-      scope: 'global',
-      title: 'Title',
-      content: 'Content',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      source: 'manual',
-      tags: ['old'],
-      confidence: 1.0,
-    };
+    const memory = { ...baseMemory, tags: ['old'] };
     await repo.save(memory);
 
     await useCase.execute({
@@ -176,5 +154,31 @@ describe('UpdateMemoryUseCase', () => {
     await expect(useCase.execute({ id: 'missing', title: 'X' })).rejects.toThrow(
       'Memory not found: missing'
     );
+  });
+
+  it('triggers enrichment asynchronously without blocking return', async () => {
+    await repo.save(baseMemory);
+
+    await useCase.execute({
+      id: baseMemory.id,
+      title: 'Updated',
+    });
+
+    expect(enrichmentService.enriched.length).toBe(1);
+    expect(enrichmentService.enriched[0]?.id).toBe(baseMemory.id);
+    expect(enrichmentService.enriched[0]?.title).toBe('Updated');
+  });
+
+  it('works without enrichment service', async () => {
+    useCase = new UpdateMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    await repo.save(baseMemory);
+
+    await useCase.execute({
+      id: baseMemory.id,
+      title: 'Updated',
+    });
+
+    const updated = await repo.findById(baseMemory.id);
+    expect(updated?.title).toBe('Updated');
   });
 });

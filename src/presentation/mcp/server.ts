@@ -222,7 +222,8 @@ export async function startMcpServer(): Promise<void> {
           const useCase = new SaveMemoryUseCase(
             container.memoryRepository,
             container.vectorIndex,
-            container.embeddingProvider
+            container.embeddingProvider,
+            container.enrichmentService
           );
           const result = await useCase.execute({
             title: input.title,
@@ -243,7 +244,8 @@ export async function startMcpServer(): Promise<void> {
           const useCase = new UpdateMemoryUseCase(
             container.memoryRepository,
             container.vectorIndex,
-            container.embeddingProvider
+            container.embeddingProvider,
+            container.enrichmentService
           );
           await useCase.execute({
             id: input.id,

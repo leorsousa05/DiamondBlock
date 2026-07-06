@@ -3,6 +3,7 @@ import type { SessionRepository } from './application/ports/session_repository.j
 import type { VectorIndex } from './application/ports/vector_index.js';
 import type { EmbeddingProvider } from './application/ports/embedding_provider.js';
 import type { ConfigStore } from './application/ports/config_store.js';
+import type { MemoryEnrichmentService } from './domain/services/memory_enrichment.js';
 
 export interface Container {
   memoryRepository: MemoryRepository;
@@ -10,6 +11,7 @@ export interface Container {
   vectorIndex: VectorIndex;
   embeddingProvider: EmbeddingProvider;
   configStore: ConfigStore;
+  enrichmentService?: MemoryEnrichmentService;
 }
 
 let container: Container | null = null;

@@ -1,0 +1,20 @@
+id: '004'
+slug: memory-auto-metadata-enrichment
+status: completed
+title: Add automatic memory metadata enrichment
+author: architect
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+type: feat
+scope:
+  - src/domain/services/memory_enrichment.ts
+  - src/application/ports/enrichment_provider.ts
+  - src/infrastructure/local_enrichment_provider.ts
+  - src/application/use_cases/save_memory.ts
+  - src/application/use_cases/update_memory.ts
+  - src/application/use_cases/save_memory.test.ts
+  - src/application/use_cases/update_memory.test.ts
+  - src/domain/services/memory_enrichment.test.ts
+  - src/infrastructure/local_enrichment_provider.test.ts
+  - src/infrastructure/markdown_serializer.ts
+  - specs/living/diamondblock-core.md

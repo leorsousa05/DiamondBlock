@@ -5,6 +5,8 @@ import { SqliteVectorIndex } from './infrastructure/sqlite_vector_index.js';
 import { LocalEmbeddingProvider } from './infrastructure/local_embedding_provider.js';
 import { OpenAIEmbeddingProvider } from './infrastructure/openai_embedding_provider.js';
 import { YamlConfigStore } from './infrastructure/yaml_config_store.js';
+import { LocalEnrichmentProvider } from './infrastructure/local_enrichment_provider.js';
+import { MemoryEnrichmentService } from './domain/services/memory_enrichment.js';
 import { defaultVaultPath } from './infrastructure/vault_initializer.js';
 import type { Container } from './container.js';
 
@@ -27,11 +29,21 @@ export async function createDefaultContainer(vaultPath?: string): Promise<Contai
     embeddingProvider = new LocalEmbeddingProvider();
   }
 
+  const enrichmentProvider = new LocalEnrichmentProvider();
+  const enrichmentService = new MemoryEnrichmentService(
+    memoryRepository,
+    vectorIndex,
+    embeddingProvider,
+    enrichmentProvider,
+    { confidenceThreshold: 0.5, maxTags: 10, maxEntities: 10 }
+  );
+
   return {
     memoryRepository,
     sessionRepository,
     vectorIndex,
     embeddingProvider,
     configStore,
+    enrichmentService,
   };
 }

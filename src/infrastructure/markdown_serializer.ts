@@ -10,6 +10,8 @@ export interface MemoryFrontmatter {
   source: string;
   tags?: string[];
   confidence?: number;
+  summary?: string;
+  entities?: string[];
 }
 
 export function memoryToMarkdown(memory: Memory): string {
@@ -22,6 +24,8 @@ export function memoryToMarkdown(memory: Memory): string {
     source: memory.source,
     tags: memory.tags,
     confidence: memory.confidence,
+    ...(memory.summary && { summary: memory.summary }),
+    ...(memory.entities && memory.entities.length > 0 && { entities: memory.entities }),
   };
 
   const lines = [
@@ -58,6 +62,8 @@ export function memoryFromMarkdown(id: string, raw: string): Memory {
     source: fm.source ?? 'manual',
     tags: fm.tags ?? [],
     confidence: fm.confidence ?? 1.0,
+    ...(fm.summary !== undefined && { summary: fm.summary }),
+    ...(fm.entities !== undefined && { entities: fm.entities }),
   };
 }
 
