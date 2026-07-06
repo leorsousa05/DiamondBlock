@@ -4,9 +4,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
 import { readFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { createInterface } from 'node:readline';
@@ -23,9 +22,8 @@ import { SaveMemoryUseCase } from '../../application/use_cases/save_memory.js';
 import { SearchMemoryUseCase } from '../../application/use_cases/search_memory.js';
 import { DeleteMemoryUseCase } from '../../application/use_cases/delete_memory.js';
 import { DistillSessionsUseCase } from '../../application/use_cases/distill_sessions.js';
-import { memoryToMarkdown } from '../../infrastructure/markdown_serializer.js';
-import { InstallMcpUseCase } from '../../application/use_cases/install_mcp.js';
-import { createDefaultInstallers } from '../../infrastructure/mcp_installers/json_file_installer.js';
+import { memoryToMarkdown, memoryFromMarkdown } from '../../infrastructure/markdown_serializer.js';
+import { UpdateMemoryUseCase } from '../../application/use_cases/update_memory.js';
 
 const program = new Command();
 
@@ -227,17 +225,18 @@ memoryCmd
     }
 
     const updated = await openEditor(memoryToMarkdown(memory));
-    const parsed = updated.replace(/---\n[\s\S]*?\n---\n\n/, '');
+    const parsed = memoryFromMarkdown(id, updated);
 
     const vectorIndex = new SqliteVectorIndex({ dbPath: join(basePath, 'index', 'embeddings.sqlite') });
 
-    const useCase = new SaveMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    const useCase = new UpdateMemoryUseCase(repo, vectorIndex, embeddingProvider);
     await useCase.execute({
-      title: memory.title,
-      content: parsed,
-      type: memory.type,
-      scope: memory.scope,
-      tags: memory.tags,
+      id,
+      title: parsed.title,
+      content: parsed.content,
+      type: parsed.type,
+      scope: parsed.scope,
+      tags: parsed.tags,
     });
 
     console.log(chalk.green(`Memory updated: ${id}`));
@@ -367,42 +366,6 @@ program
     console.log(`Memories:        ${chalk.cyan(memories.length)}`);
     console.log(`Sessions:        ${chalk.cyan(sessions.length)}`);
   });
-
-program
-  .command('install mcp')
-  .description('Install DiamondBlock as an MCP server for detected agents')
-  .option('--target <agent>', 'install only for a specific agent')
-  .option('--dry-run', 'show what would be installed without modifying files')
-  .action(async (_mcp: string, options: { target?: string; dryRun?: boolean }) => {
-    const { basePath } = await loadContainer();
-    const serverPath = resolveMcpServerPath();
-
-    const useCase = new InstallMcpUseCase(createDefaultInstallers());
-    const results = await useCase.execute({
-      serverConfig: {
-        command: 'node',
-        args: [serverPath],
-        env: {
-          DB_HOME: basePath,
-        },
-      },
-      target: options.target,
-      dryRun: options.dryRun,
-    });
-
-    for (const result of results) {
-      const color = result.installed ? chalk.green : result.message.includes('not detected') ? chalk.gray : chalk.yellow;
-      console.log(color(`${result.agent}: ${result.message}`));
-      if (result.configPath) {
-        console.log(chalk.gray(`  → ${result.configPath}`));
-      }
-    }
-  });
-
-function resolveMcpServerPath(): string {
-  const cliPath = fileURLToPath(import.meta.url);
-  return join(dirname(cliPath), '..', 'mcp', 'server.js');
-}
 
 async function openEditor(content: string): Promise<string> {
   const editor = process.env.EDITOR ?? 'nano';

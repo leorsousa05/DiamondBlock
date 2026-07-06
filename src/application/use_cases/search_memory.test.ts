@@ -140,6 +140,24 @@ describe('SearchMemoryUseCase', () => {
     expect(results[0]?.score).toBe(0.5);
   });
 
+  it('returns path from the repository', async () => {
+    const memory = createMemory({
+      type: 'project',
+      scope: 'project/alpha',
+      title: 'Alpha',
+      content: 'project alpha notes',
+    });
+
+    await repo.save(memory);
+    await vectorIndex.index(memory, [1, 0, 0]);
+
+    const useCase = new SearchMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    const results = await useCase.execute({ query: 'project alpha', limit: 5 });
+
+    expect(results.length).toBe(1);
+    expect(results[0]?.path).toBe(repo.resolvePath(memory));
+  });
+
   it('returns empty array when nothing matches', async () => {
     const useCase = new SearchMemoryUseCase(repo, vectorIndex, embeddingProvider);
     const results = await useCase.execute({ query: 'nonexistent', limit: 5 });

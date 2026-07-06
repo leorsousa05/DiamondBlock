@@ -41,7 +41,7 @@ export class SearchMemoryUseCase {
               id: memory.id,
               title: memory.title,
               score: result.score,
-              path: this.memoryPath(memory),
+              path: this.memoryRepository.resolvePath(memory),
             };
           })
           .filter(Boolean)
@@ -61,17 +61,12 @@ export class SearchMemoryUseCase {
       id: memory.id,
       title: memory.title,
       score: 0.5,
-      path: this.memoryPath(memory),
+      path: this.memoryRepository.resolvePath(memory),
     }));
   }
 
   private async resolveMemories(ids: string[]): Promise<Memory[]> {
     const memories = await Promise.all(ids.map((id) => this.memoryRepository.findById(id)));
     return memories.filter((memory): memory is Memory => memory !== null);
-  }
-
-  private memoryPath(memory: Memory): string {
-    const scopeDir = memory.scope.replace(/\//g, '_');
-    return `vault/Memory/${memory.type}/${scopeDir}/${memory.id}.md`;
   }
 }

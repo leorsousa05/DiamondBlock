@@ -21,4 +21,5 @@ export interface MemoryRepository {
   save(memory: Memory): Promise<void>;
   delete(id: string): Promise<void>;
   list(options?: ListOptions): Promise<Memory[]>;
+  resolvePath(memory: Memory): string;
 }

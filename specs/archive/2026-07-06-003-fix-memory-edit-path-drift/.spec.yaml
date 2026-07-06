@@ -1,0 +1,18 @@
+id: '003'
+slug: fix-memory-edit-path-drift
+status: completed
+title: Fix memory edit bug and id/path drift
+author: architect
+created_at: '2026-07-06'
+updated_at: '2026-07-06'
+type: fix
+scope:
+  - src/presentation/cli/index.ts
+  - src/application/use_cases/update_memory.ts
+  - src/infrastructure/file_memory_repository.ts
+  - src/application/use_cases/search_memory.ts
+  - src/application/ports/memory_repository.ts
+  - src/infrastructure/markdown_serializer.ts
+  - src/infrastructure/file_memory_repository.test.ts
+  - src/application/use_cases/search_memory.test.ts
+  - src/application/use_cases/update_memory.test.ts

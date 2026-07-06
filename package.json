@@ -1,6 +1,6 @@
 {
   "name": "diamondblock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first semantic memory server for AI coding agents",
   "type": "module",
   "main": "dist/index.js",
