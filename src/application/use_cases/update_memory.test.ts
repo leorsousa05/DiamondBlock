@@ -17,6 +17,10 @@ class FakeMemoryRepository implements MemoryRepository {
     return [];
   }
 
+  async searchWithScore(): Promise<Array<{ memory: Memory; score: number }>> {
+    return [];
+  }
+
   async save(memory: Memory): Promise<void> {
     this.memories.set(memory.id, memory);
   }
@@ -137,17 +141,56 @@ describe('UpdateMemoryUseCase', () => {
     expect(updated?.content).toBe('Original content\n\nAppended');
   });
 
-  it('updates tags', async () => {
-    const memory = { ...baseMemory, tags: ['old'] };
+  it('normalizes scope before updating', async () => {
+    await repo.save(baseMemory);
+
+    await useCase.execute({
+      id: baseMemory.id,
+      scope: '  GLOBAL  ',
+    });
+
+    const updated = await repo.findById(baseMemory.id);
+    expect(updated?.scope).toBe('global');
+  });
+
+  it('derives project scope from projectId when type changes to project', async () => {
+    await repo.save(baseMemory);
+
+    await useCase.execute({
+      id: baseMemory.id,
+      type: 'project',
+      projectId: 'demo',
+    });
+
+    const updated = await repo.findById(baseMemory.id);
+    expect(updated?.type).toBe('project');
+    expect(updated?.scope).toBe('project/demo');
+  });
+
+  it('overrides non-project scope with projectId for project type', async () => {
+    const memory = { ...baseMemory, title: 'Title', content: 'Content' };
     await repo.save(memory);
 
     await useCase.execute({
       id: memory.id,
-      tags: ['new'],
+      type: 'project',
+      scope: 'global',
+      projectId: 'demo',
     });
 
     const updated = await repo.findById(memory.id);
-    expect(updated?.tags).toEqual(['new']);
+    expect(updated?.scope).toBe('project/demo');
+  });
+
+  it('throws when project type lacks project scope and projectId', async () => {
+    await repo.save(baseMemory);
+
+    await expect(
+      useCase.execute({
+        id: baseMemory.id,
+        type: 'project',
+      })
+    ).rejects.toThrow(/requires a project scope or projectId/);
   });
 
   it('throws when memory is not found', async () => {

@@ -5,6 +5,7 @@ export interface DiamondBlockConfig {
   openaiEmbeddingModel?: string;
   heartbeatIntervalMinutes: number;
   contextWindowTokens: number;
+  projectRoots?: Record<string, string>;
 }
 
 export interface ConfigStore {

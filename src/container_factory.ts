@@ -8,6 +8,7 @@ import { YamlConfigStore } from './infrastructure/yaml_config_store.js';
 import { LocalEnrichmentProvider } from './infrastructure/local_enrichment_provider.js';
 import { MemoryEnrichmentService } from './domain/services/memory_enrichment.js';
 import { defaultVaultPath } from './infrastructure/vault_initializer.js';
+import { CwdProjectResolver } from './infrastructure/cwd_project_resolver.js';
 import type { Container } from './container.js';
 
 export async function createDefaultContainer(vaultPath?: string): Promise<Container> {
@@ -38,12 +39,15 @@ export async function createDefaultContainer(vaultPath?: string): Promise<Contai
     { confidenceThreshold: 0.5, maxTags: 10, maxEntities: 10 }
   );
 
+  const projectResolver = new CwdProjectResolver({ configStore });
+
   return {
     memoryRepository,
     sessionRepository,
     vectorIndex,
     embeddingProvider,
     configStore,
+    projectResolver,
     enrichmentService,
   };
 }

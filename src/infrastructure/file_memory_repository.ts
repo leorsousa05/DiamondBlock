@@ -29,6 +29,11 @@ export class FileMemoryRepository implements MemoryRepository {
   }
 
   async search(options: SearchOptions): Promise<Memory[]> {
+    const results = await this.searchWithScore(options);
+    return results.map((r) => r.memory);
+  }
+
+  async searchWithScore(options: SearchOptions): Promise<Array<{ memory: Memory; score: number }>> {
     let memories = await this.listAll();
 
     if (options.scope) {
@@ -39,6 +44,7 @@ export class FileMemoryRepository implements MemoryRepository {
       memories = memories.filter((m) => m.type === options.type);
     }
 
+    let score = 0.5;
     if (options.query) {
       const lower = options.query.toLowerCase();
       memories = memories.filter(
@@ -51,7 +57,7 @@ export class FileMemoryRepository implements MemoryRepository {
 
     const limit = options.limit ?? 50;
     const offset = options.offset ?? 0;
-    return memories.slice(offset, offset + limit);
+    return memories.slice(offset, offset + limit).map((memory) => ({ memory, score }));
   }
 
   async save(memory: Memory): Promise<void> {

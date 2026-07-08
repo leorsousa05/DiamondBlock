@@ -17,6 +17,10 @@ class FakeMemoryRepository implements MemoryRepository {
     return [];
   }
 
+  async searchWithScore(): Promise<Array<{ memory: Memory; score: number }>> {
+    return [];
+  }
+
   async save(memory: Memory): Promise<void> {
     this.memories.set(memory.id, memory);
   }
@@ -103,18 +107,72 @@ describe('SaveMemoryUseCase', () => {
     expect(enrichmentService.enriched[0]?.id).toBe(result.id);
   });
 
-  it('works without enrichment service', async () => {
-    useCase = new SaveMemoryUseCase(repo, vectorIndex, embeddingProvider);
-
+  it('normalizes scope before saving', async () => {
     const result = await useCase.execute({
       title: 'Hello',
       content: 'World',
       type: 'knowledge',
-      scope: 'global',
+      scope: '  GLOBAL  ',
     });
 
-    expect(result.id).toBeDefined();
     const saved = await repo.findById(result.id);
-    expect(saved).not.toBeNull();
+    expect(saved?.scope).toBe('global');
+  });
+
+  it('derives project scope from projectId for project type', async () => {
+    const result = await useCase.execute({
+      title: 'Hello',
+      content: 'World',
+      type: 'project',
+      projectId: 'My App',
+    });
+
+    const saved = await repo.findById(result.id);
+    expect(saved?.scope).toBe('project/my-app');
+  });
+
+  it('derives project scope from projectId for distilled type', async () => {
+    const result = await useCase.execute({
+      title: 'Hello',
+      content: 'World',
+      type: 'distilled',
+      projectId: 'my-app',
+    });
+
+    const saved = await repo.findById(result.id);
+    expect(saved?.scope).toBe('project/my-app');
+  });
+
+  it('derives project scope from projectId when scope is omitted for project type', async () => {
+    const result = await useCase.execute({
+      title: 'Hello',
+      content: 'World',
+      type: 'project',
+      projectId: 'demo',
+    });
+
+    const saved = await repo.findById(result.id);
+    expect(saved?.scope).toBe('project/demo');
+  });
+
+  it('throws when knowledge type is given a project scope', async () => {
+    await expect(
+      useCase.execute({
+        title: 'Hello',
+        content: 'World',
+        type: 'knowledge',
+        scope: 'project/demo',
+      })
+    ).rejects.toThrow(/cannot use a project scope/);
+  });
+
+  it('throws when project type lacks scope and projectId', async () => {
+    await expect(
+      useCase.execute({
+        title: 'Hello',
+        content: 'World',
+        type: 'project',
+      })
+    ).rejects.toThrow(/requires a project scope or projectId/);
   });
 });

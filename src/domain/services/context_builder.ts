@@ -12,6 +12,7 @@ export interface ContextInput {
 export interface ContextOutput {
   userMemory: string;
   projectMemory: string;
+  globalMemory: string;
   recentSessions: string[];
   relevantMemories: string[];
 }
@@ -19,6 +20,7 @@ export interface ContextOutput {
 export interface ContextBuilderDependencies {
   findUserMemory(): Promise<Memory | null>;
   findProjectMemory(projectId: string): Promise<Memory | null>;
+  findGlobalMemories(limit: number): Promise<Memory[]>;
   findRecentSessions(projectId: string, limit: number): Promise<Session[]>;
   findRelevantMemories(projectId: string, mode?: string, limit?: number): Promise<Memory[]>;
 }
@@ -30,11 +32,13 @@ export class ContextBuilder {
     const [
       userMemory,
       projectMemory,
+      globalMemories,
       recentSessions,
       relevantMemories,
     ] = await Promise.all([
       this.deps.findUserMemory(),
       this.deps.findProjectMemory(input.projectId),
+      this.deps.findGlobalMemories(2),
       this.deps.findRecentSessions(input.projectId, input.recentSessionCount ?? 3),
       this.deps.findRelevantMemories(input.projectId, input.mode, input.relevantMemoryCount ?? 5),
     ]);
@@ -42,6 +46,7 @@ export class ContextBuilder {
     return {
       userMemory: this.renderMemory(userMemory, 'No user memory yet.'),
       projectMemory: this.renderMemory(projectMemory, 'No project memory yet.'),
+      globalMemory: this.renderGlobalMemories(globalMemories),
       recentSessions: recentSessions.map((s) => this.renderSession(s)),
       relevantMemories: relevantMemories.map((m) => this.renderMemory(m, '')),
     };
@@ -50,6 +55,11 @@ export class ContextBuilder {
   private renderMemory(memory: Memory | null, fallback: string): string {
     if (!memory) return fallback;
     return `# ${memory.title}\n\n${memory.content}`;
+  }
+
+  private renderGlobalMemories(memories: Memory[]): string {
+    if (memories.length === 0) return 'No global memory yet.';
+    return memories.map((m) => this.renderMemory(m, '')).join('\n\n');
   }
 
   private renderSession(session: Session): string {

@@ -5,6 +5,7 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { fileURLToPath } from 'node:url';
 import { getContainer, setContainer } from '../../container.js';
 import { createDefaultContainer } from '../../container_factory.js';
 import { GetContextUseCase } from '../../application/use_cases/get_context.js';
@@ -13,6 +14,21 @@ import { SearchMemoryUseCase } from '../../application/use_cases/search_memory.j
 import { UpdateMemoryUseCase } from '../../application/use_cases/update_memory.js';
 import { DeleteMemoryUseCase } from '../../application/use_cases/delete_memory.js';
 import { LogSessionUseCase } from '../../application/use_cases/log_session.js';
+import { Scope } from '../../domain/scope.js';
+
+const DEBUG = process.env.DIAMONDBLOCK_DEBUG === 'true';
+
+function debugLog(message: string): void {
+  if (DEBUG) {
+    console.error(`[diamondblock] ${message}`);
+  }
+}
+
+export function resolveSearchScope(input: { scope?: string; project_id?: string }): string | undefined {
+  if (input.scope) return Scope.normalize(input.scope);
+  if (input.project_id) return Scope.fromTypeAndProject('project', input.project_id);
+  return undefined;
+}
 
 const getContextInputSchema = z.object({
   session_id: z.string(),
@@ -20,28 +36,31 @@ const getContextInputSchema = z.object({
   mode: z.string().optional(),
 });
 
-const searchMemoryInputSchema = z.object({
+export const searchMemoryInputSchema = z.object({
   query: z.string(),
   scope: z.string().optional(),
+  project_id: z.string().optional(),
   limit: z.number().int().positive().optional(),
 });
 
-const saveMemoryInputSchema = z.object({
+export const saveMemoryInputSchema = z.object({
   title: z.string(),
   content: z.string(),
   type: z.enum(['user', 'project', 'knowledge', 'distilled']),
-  scope: z.string(),
+  scope: z.string().optional(),
+  project_id: z.string().optional(),
   source: z.string().optional(),
   tags: z.array(z.string()).optional(),
   confidence: z.number().min(0).max(1).optional(),
 });
 
-const updateMemoryInputSchema = z.object({
+export const updateMemoryInputSchema = z.object({
   id: z.string(),
   title: z.string().optional(),
   content: z.string().optional(),
   type: z.enum(['user', 'project', 'knowledge', 'distilled']).optional(),
   scope: z.string().optional(),
+  project_id: z.string().optional(),
   tags: z.array(z.string()).optional(),
   confidence: z.number().min(0).max(1).optional(),
   append: z.boolean().optional(),
@@ -101,6 +120,7 @@ export async function startMcpServer(): Promise<void> {
           properties: {
             query: { type: 'string' },
             scope: { type: 'string' },
+            project_id: { type: 'string' },
             limit: { type: 'number' },
           },
           required: ['query'],
@@ -116,11 +136,12 @@ export async function startMcpServer(): Promise<void> {
             content: { type: 'string' },
             type: { type: 'string', enum: ['user', 'project', 'knowledge', 'distilled'] },
             scope: { type: 'string' },
+            project_id: { type: 'string' },
             source: { type: 'string' },
             tags: { type: 'array', items: { type: 'string' } },
             confidence: { type: 'number' },
           },
-          required: ['title', 'content', 'type', 'scope'],
+          required: ['title', 'content', 'type'],
         },
       },
       {
@@ -134,6 +155,7 @@ export async function startMcpServer(): Promise<void> {
             content: { type: 'string' },
             type: { type: 'string' },
             scope: { type: 'string' },
+            project_id: { type: 'string' },
             tags: { type: 'array', items: { type: 'string' } },
             confidence: { type: 'number' },
             append: { type: 'boolean' },
@@ -202,6 +224,8 @@ export async function startMcpServer(): Promise<void> {
 
         case 'search_memory': {
           const input = searchMemoryInputSchema.parse(args);
+          const scope = resolveSearchScope(input);
+          debugLog(`search_memory resolved scope: ${scope ?? 'all'}, project_id: ${input.project_id ?? 'none'}`);
           const useCase = new SearchMemoryUseCase(
             container.memoryRepository,
             container.vectorIndex,
@@ -209,7 +233,7 @@ export async function startMcpServer(): Promise<void> {
           );
           const result = await useCase.execute({
             query: input.query,
-            scope: input.scope,
+            scope,
             limit: input.limit,
           });
           return {
@@ -219,6 +243,8 @@ export async function startMcpServer(): Promise<void> {
 
         case 'save_memory': {
           const input = saveMemoryInputSchema.parse(args);
+          const resolvedScope = input.scope ? Scope.normalize(input.scope) : undefined;
+          debugLog(`save_memory project_id: ${input.project_id ?? 'none'}, scope: ${resolvedScope ?? 'derived'}`);
           const useCase = new SaveMemoryUseCase(
             container.memoryRepository,
             container.vectorIndex,
@@ -229,7 +255,8 @@ export async function startMcpServer(): Promise<void> {
             title: input.title,
             content: input.content,
             type: input.type,
-            scope: input.scope,
+            scope: resolvedScope,
+            projectId: input.project_id ? Scope.normalize(input.project_id) : undefined,
             source: input.source,
             tags: input.tags,
             confidence: input.confidence,
@@ -241,6 +268,8 @@ export async function startMcpServer(): Promise<void> {
 
         case 'update_memory': {
           const input = updateMemoryInputSchema.parse(args);
+          const resolvedScope = input.scope ? Scope.normalize(input.scope) : undefined;
+          debugLog(`update_memory project_id: ${input.project_id ?? 'none'}, scope: ${resolvedScope ?? 'unchanged'}`);
           const useCase = new UpdateMemoryUseCase(
             container.memoryRepository,
             container.vectorIndex,
@@ -252,7 +281,8 @@ export async function startMcpServer(): Promise<void> {
             title: input.title,
             content: input.content,
             type: input.type,
-            scope: input.scope,
+            scope: resolvedScope,
+            projectId: input.project_id ? Scope.normalize(input.project_id) : undefined,
             tags: input.tags,
             confidence: input.confidence,
             append: input.append,
@@ -316,7 +346,10 @@ async function main(): Promise<void> {
   await startMcpServer();
 }
 
-main().catch((error) => {
-  console.error('MCP server failed:', error);
-  process.exit(1);
-});
+const isMainModule = import.meta.url.startsWith('file:') && process.argv[1] === fileURLToPath(import.meta.url);
+if (isMainModule) {
+  main().catch((error) => {
+    console.error('MCP server failed:', error);
+    process.exit(1);
+  });
+}

@@ -1,0 +1,35 @@
+id: '005'
+slug: scope-and-project-resolution
+status: completed
+title: Improve scope and project resolution across MCP, CLI, and context
+author: architect
+created_at: '2026-07-08'
+updated_at: '2026-07-08'
+type: feat
+scope:
+  - src/domain/scope.ts
+  - src/domain/scope.test.ts
+  - src/application/ports/project_resolver.ts
+  - src/infrastructure/cwd_project_resolver.ts
+  - src/infrastructure/cwd_project_resolver.test.ts
+  - src/application/ports/vector_index.ts
+  - src/infrastructure/sqlite_vector_index.ts
+  - src/infrastructure/sqlite_vector_index.test.ts
+  - src/application/use_cases/save_memory.ts
+  - src/application/use_cases/update_memory.ts
+  - src/application/use_cases/search_memory.ts
+  - src/application/use_cases/get_context.ts
+  - src/application/use_cases/save_memory.test.ts
+  - src/application/use_cases/update_memory.test.ts
+  - src/application/use_cases/search_memory.test.ts
+  - src/application/use_cases/get_context.test.ts
+  - src/domain/services/context_builder.ts
+  - src/domain/services/context_builder.test.ts
+  - src/presentation/mcp/server.ts
+  - src/presentation/mcp/server.test.ts
+  - src/presentation/cli/index.ts
+  - src/container.ts
+  - src/container_factory.ts
+  - src/application/ports/config_store.ts
+  - src/infrastructure/yaml_config_store.ts
+  - specs/living/diamondblock-core.md

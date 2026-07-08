@@ -15,9 +15,15 @@ export interface ListOptions {
   offset?: number;
 }
 
+export interface MemorySearchResult {
+  memory: Memory;
+  score: number;
+}
+
 export interface MemoryRepository {
   findById(id: string): Promise<Memory | null>;
   search(options: SearchOptions): Promise<Memory[]>;
+  searchWithScore(options: SearchOptions): Promise<MemorySearchResult[]>;
   save(memory: Memory): Promise<void>;
   delete(id: string): Promise<void>;
   list(options?: ListOptions): Promise<Memory[]>;

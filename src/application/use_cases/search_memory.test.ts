@@ -7,19 +7,24 @@ import { FileMemoryRepository } from '../../infrastructure/file_memory_repositor
 import { createMemory } from '../../domain/memory.js';
 
 class FakeVectorIndex {
-  private data = new Map<string, number[]>();
+  private data = new Map<string, { embedding: number[]; scope: string }>();
 
-  async index(memory: { id: string }, embedding: number[]): Promise<void> {
-    this.data.set(memory.id, embedding);
+  async index(memory: { id: string; scope: string }, embedding: number[]): Promise<void> {
+    this.data.set(memory.id, { embedding, scope: memory.scope });
   }
 
-  async search(embedding: number[], limit: number): Promise<Array<{ id: string; score: number }>> {
-    const results: Array<{ id: string; score: number }> = [];
+  async search(embedding: number[], limit: number, options?: { scope?: string }): Promise<Array<{ id: string; score: number }>> {
+    let results: Array<{ id: string; score: number }> = [];
     for (const [id, stored] of this.data.entries()) {
-      const score = this.cosineSimilarity(embedding, stored);
-      results.push({ id, score });
+      results.push({ id, score: this.cosineSimilarity(embedding, stored.embedding) });
     }
-    return results.sort((a, b) => b.score - a.score).slice(0, limit);
+    results = results.sort((a, b) => b.score - a.score);
+
+    if (options?.scope) {
+      results = results.filter((r) => this.data.get(r.id)?.scope === options.scope);
+    }
+
+    return results.slice(0, limit);
   }
 
   async remove(): Promise<void> {}
@@ -156,6 +161,51 @@ describe('SearchMemoryUseCase', () => {
 
     expect(results.length).toBe(1);
     expect(results[0]?.path).toBe(repo.resolvePath(memory));
+  });
+
+  it('returns scope in results', async () => {
+    const alpha = createMemory({
+      type: 'project',
+      scope: 'project/alpha',
+      title: 'Alpha',
+      content: 'project alpha notes',
+    });
+
+    await repo.save(alpha);
+    await vectorIndex.index(alpha, [1, 0, 0]);
+
+    const useCase = new SearchMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    const results = await useCase.execute({ query: 'project alpha', limit: 5 });
+
+    expect(results.length).toBe(1);
+    expect(results[0]?.scope).toBe('project/alpha');
+  });
+
+  it('normalizes input scope when filtering', async () => {
+    const alpha = createMemory({
+      type: 'project',
+      scope: 'project/alpha',
+      title: 'Alpha',
+      content: 'project alpha notes',
+    });
+    const beta = createMemory({
+      type: 'project',
+      scope: 'project/beta',
+      title: 'Beta',
+      content: 'project beta notes',
+    });
+
+    await repo.save(alpha);
+    await repo.save(beta);
+    await vectorIndex.index(alpha, [1, 0, 0]);
+    await vectorIndex.index(beta, [0, 1, 0]);
+
+    const useCase = new SearchMemoryUseCase(repo, vectorIndex, embeddingProvider);
+    const results = await useCase.execute({ query: 'project', scope: '  PROJECT/ALPHA  ', limit: 5 });
+
+    expect(results.length).toBe(1);
+    expect(results[0]?.id).toBe(alpha.id);
+    expect(results[0]?.scope).toBe('project/alpha');
   });
 
   it('returns empty array when nothing matches', async () => {

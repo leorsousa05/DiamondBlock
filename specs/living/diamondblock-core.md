@@ -9,11 +9,12 @@ DiamondBlock é um servidor MCP de memória persistente, semântica e auto-curad
 ## Componentes Implementados
 
 - **Memory System**: armazena memórias de usuário, projeto, conhecimento e destiladas em Markdown + frontmatter.
-- **Vector Index**: índice vetorial local SQLite (`sqlite-vec`) para busca semântica.
+- **Vector Index**: índice vetorial local SQLite (`sqlite-vec`) para busca semântica, agora com filtro por escopo no próprio índice.
 - **Metadata Enrichment**: enriquecimento assíncrono e local de memórias com tags, entidades e resumo, usando regras heurísticas e busca por similaridade.
-- **MCP Server**: expõe tools via stdio para agents.
-- **CLI**: interface humana para gerenciar memórias e sessões.
+- **MCP Server**: expõe tools via stdio para agents, com resolução automática de `project_id` e exibição de `scope` nos resultados.
+- **CLI**: interface humana para gerenciar memórias e sessões, com opção `--project` e detecção automática de projeto a partir do cwd/git/config.
 - **Distiller**: destila logs de sessão em memórias curadas.
+- **Scope & Project Resolution**: value object `Scope`, port `ProjectResolver` e adapter `CwdProjectResolver` para normalizar e resolver escopos e projetos.
 
 ## Stack
 
@@ -33,7 +34,7 @@ DiamondBlock é um servidor MCP de memória persistente, semântica e auto-curad
 
 ## Status
 
-Implementação inicial completa e testada. Enriquecimento automático de metadados implementado (spec 004). README inicial criado. Layout do vault alinhado com a implementação atual (um arquivo Markdown por memória).
+Implementação inicial completa e testada. Enriquecimento automático de metadados implementado (spec 004). Resolução de escopo e projeto implementada (spec 005): `Scope`, `ProjectResolver`, busca vetorial scope-aware, `--project` na CLI e `project_id` opcional no MCP.
 
 ## Deferred
 
@@ -44,3 +45,4 @@ Implementação inicial completa e testada. Enriquecimento automático de metada
 - Transporte MCP HTTP/SSE.
 - Sync em nuvem.
 - Multi-usuário.
+- Mapeamento explícito de múltiplos projetos no vault (`projectRoots` já suporta caminho -> projectId).

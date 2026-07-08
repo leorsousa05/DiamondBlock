@@ -24,9 +24,17 @@ describe('ContextBuilder', () => {
       messages: [{ role: 'user', content: 'Hello', timestamp: new Date() }],
     });
 
+    const globalMemory = createMemory({
+      type: 'knowledge',
+      scope: 'global',
+      title: 'Global Knowledge',
+      content: 'Use semantic versioning.',
+    });
+
     const builder = new ContextBuilder({
       findUserMemory: async () => userMemory,
       findProjectMemory: async () => projectMemory,
+      findGlobalMemories: async () => [globalMemory],
       findRecentSessions: async () => [session],
       findRelevantMemories: async () => [projectMemory],
     });
@@ -38,6 +46,7 @@ describe('ContextBuilder', () => {
 
     expect(context.userMemory).toContain('User Preferences');
     expect(context.projectMemory).toContain('Demo Project');
+    expect(context.globalMemory).toContain('Global Knowledge');
     expect(context.recentSessions.length).toBe(1);
     expect(context.relevantMemories.length).toBe(1);
   });
@@ -46,6 +55,7 @@ describe('ContextBuilder', () => {
     const builder = new ContextBuilder({
       findUserMemory: async () => null,
       findProjectMemory: async () => null,
+      findGlobalMemories: async () => [],
       findRecentSessions: async () => [],
       findRelevantMemories: async () => [],
     });
@@ -57,5 +67,6 @@ describe('ContextBuilder', () => {
 
     expect(context.userMemory).toBe('No user memory yet.');
     expect(context.projectMemory).toBe('No project memory yet.');
+    expect(context.globalMemory).toBe('No global memory yet.');
   });
 });

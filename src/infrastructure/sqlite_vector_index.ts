@@ -3,7 +3,8 @@ import * as sqliteVec from 'sqlite-vec';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Memory } from '../domain/memory.js';
-import type { SearchResult, VectorIndex } from '../application/ports/vector_index.js';
+import type { SearchResult, VectorIndex, VectorSearchOptions } from '../application/ports/vector_index.js';
+import { Scope } from '../domain/scope.js';
 
 export interface SqliteVectorIndexOptions {
   dbPath: string;
@@ -86,21 +87,52 @@ export class SqliteVectorIndex implements VectorIndex {
     transaction();
   }
 
-  async search(embedding: number[], limit: number): Promise<SearchResult[]> {
+  async search(embedding: number[], limit: number, options?: VectorSearchOptions): Promise<SearchResult[]> {
     const db = this.getDb();
     const vectorJson = JSON.stringify(embedding);
+    const scope = options?.scope ? Scope.normalize(options.scope) : undefined;
 
-    const rows = db
-      .prepare(
+    let rows: Array<{ memory_id: string; distance: number }>;
+
+    if (scope) {
+      const maxK = 4096;
+      let k = Math.min(limit * 10, maxK);
+      let attempts = 0;
+      const maxAttempts = 3;
+
+      do {
+        rows = db
+          .prepare(
+            `
+          SELECT vm.memory_id, vm.distance
+          FROM vec_memories AS vm
+          JOIN memories AS m ON m.id = vm.memory_id
+          WHERE vm.embedding MATCH ?
+            AND k = ?
+            AND m.scope = ?
+          ORDER BY vm.distance
+          LIMIT ?
         `
-        SELECT memory_id, distance
-        FROM vec_memories
-        WHERE embedding MATCH ?
-        ORDER BY distance
-        LIMIT ?
-      `
-      )
-      .all(vectorJson, limit) as Array<{ memory_id: string; distance: number }>;
+          )
+          .all(vectorJson, k, scope, limit) as Array<{ memory_id: string; distance: number }>;
+
+        if (rows.length >= limit || k >= maxK) break;
+        k = Math.min(k * 4, maxK);
+        attempts++;
+      } while (rows.length < limit && attempts < maxAttempts);
+    } else {
+      rows = db
+        .prepare(
+          `
+          SELECT memory_id, distance
+          FROM vec_memories
+          WHERE embedding MATCH ?
+          ORDER BY distance
+          LIMIT ?
+        `
+        )
+        .all(vectorJson, limit) as Array<{ memory_id: string; distance: number }>;
+    }
 
     return rows.map((row) => ({
       id: row.memory_id,
