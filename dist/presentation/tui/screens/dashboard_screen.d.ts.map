@@ -1,0 +1,1 @@
+{"version":3,"file":"dashboard_screen.d.ts","sourceRoot":"","sources":["../../../../src/presentation/tui/screens/dashboard_screen.ts"],"names":[],"mappings":"AAEA,OAAO,EAAE,SAAS,EAAE,MAAM,kBAAkB,CAAC;AAiB7C,qBAAa,eAAgB,SAAQ,SAAS;IAC5C,OAAO,CAAC,IAAI,CAAuB;IAEnC,IAAI,IAAI,IAAI,MAAM,CAEjB;IAED,KAAK,IAAI,IAAI;IAIb,OAAO,IAAI,IAAI;IAIf,MAAM,IAAI,IAAI;CA6Cf"}
