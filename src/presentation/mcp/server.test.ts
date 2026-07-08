@@ -4,6 +4,7 @@ import {
   searchMemoryInputSchema,
   saveMemoryInputSchema,
   updateMemoryInputSchema,
+  indexCodebaseInputSchema,
 } from './server.js';
 
 describe('MCP server schemas', () => {
@@ -77,6 +78,29 @@ describe('MCP server schemas', () => {
       });
       expect(input.project_id).toBe('my-app');
       expect(input.scope).toBeUndefined();
+    });
+  });
+
+  describe('indexCodebaseInputSchema', () => {
+    it('accepts empty input', () => {
+      const input = indexCodebaseInputSchema.parse({});
+      expect(input.project_id).toBeUndefined();
+      expect(input.path).toBeUndefined();
+      expect(input.force).toBeUndefined();
+      expect(input.dry_run).toBeUndefined();
+    });
+
+    it('accepts all options', () => {
+      const input = indexCodebaseInputSchema.parse({
+        project_id: 'my-app',
+        path: '/tmp/project',
+        force: true,
+        dry_run: true,
+      });
+      expect(input.project_id).toBe('my-app');
+      expect(input.path).toBe('/tmp/project');
+      expect(input.force).toBe(true);
+      expect(input.dry_run).toBe(true);
     });
   });
 });

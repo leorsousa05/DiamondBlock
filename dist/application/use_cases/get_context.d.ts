@@ -9,6 +9,7 @@ export interface GetContextOutput {
     user_memory: string;
     project_memory: string;
     global_memory: string;
+    code_context: string;
     recent_sessions: string[];
     relevant_memories: string[];
 }
@@ -21,5 +22,6 @@ export declare class GetContextUseCase {
     private findProjectMemory;
     private findGlobalMemories;
     private findRelevantMemories;
+    private findCodeMemories;
 }
 //# sourceMappingURL=get_context.d.ts.map

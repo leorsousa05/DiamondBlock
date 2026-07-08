@@ -78,5 +78,21 @@ export declare const updateMemoryInputSchema: z.ZodObject<{
     project_id?: string | undefined;
     append?: boolean | undefined;
 }>;
+export declare const indexCodebaseInputSchema: z.ZodObject<{
+    project_id: z.ZodOptional<z.ZodString>;
+    path: z.ZodOptional<z.ZodString>;
+    force: z.ZodOptional<z.ZodBoolean>;
+    dry_run: z.ZodOptional<z.ZodBoolean>;
+}, "strip", z.ZodTypeAny, {
+    project_id?: string | undefined;
+    force?: boolean | undefined;
+    path?: string | undefined;
+    dry_run?: boolean | undefined;
+}, {
+    project_id?: string | undefined;
+    force?: boolean | undefined;
+    path?: string | undefined;
+    dry_run?: boolean | undefined;
+}>;
 export declare function startMcpServer(): Promise<void>;
 //# sourceMappingURL=server.d.ts.map

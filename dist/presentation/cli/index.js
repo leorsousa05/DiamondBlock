@@ -22,6 +22,7 @@ import { DeleteMemoryUseCase } from '../../application/use_cases/delete_memory.j
 import { DistillSessionsUseCase } from '../../application/use_cases/distill_sessions.js';
 import { memoryToMarkdown, memoryFromMarkdown } from '../../infrastructure/markdown_serializer.js';
 import { UpdateMemoryUseCase } from '../../application/use_cases/update_memory.js';
+import { IndexCodebaseUseCase } from '../../application/use_cases/index_codebase.js';
 import { Scope } from '../../domain/scope.js';
 const program = new Command();
 const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'package.json');
@@ -342,6 +343,100 @@ program
     console.log(`Embedding:       ${chalk.cyan(config.embeddingProvider ?? 'local')}`);
     console.log(`Memories:        ${chalk.cyan(memories.length)}`);
     console.log(`Sessions:        ${chalk.cyan(sessions.length)}`);
+});
+program
+    .command('index [path]')
+    .description('Index a codebase into the vault for semantic code search')
+    .option('--project <projectId>', 'project id (auto-detected when omitted)')
+    .option('--force', 'reindex all files regardless of content hash')
+    .option('--dry-run', 'show what would be indexed without saving')
+    .option('--status', 'show current index status for the project')
+    .action(async (projectPath, options) => {
+    const container = await loadContainer();
+    const basePath = container.basePath;
+    const projectId = options.project
+        ? Scope.normalizeProjectId(options.project)
+        : undefined;
+    if (options.status) {
+        const repo = container.codebaseIndexRepository;
+        if (!repo) {
+            console.log(chalk.red('Codebase indexer is not available.'));
+            process.exit(1);
+        }
+        const resolvedProjectId = projectId ?? (await resolveProject(container.projectResolver, projectPath)).projectId;
+        const manifest = await repo.load(resolvedProjectId);
+        if (!manifest) {
+            console.log(chalk.yellow(`No index found for project ${resolvedProjectId}.`));
+            return;
+        }
+        const fileCount = Object.keys(manifest.files).length;
+        console.log(chalk.bold('Codebase Index Status'));
+        console.log();
+        console.log(`Project:     ${chalk.cyan(manifest.projectId)}`);
+        console.log(`Root path:   ${chalk.cyan(manifest.rootPath)}`);
+        console.log(`Files:       ${chalk.cyan(fileCount)}`);
+        console.log(`Created:     ${chalk.cyan(manifest.createdAt)}`);
+        console.log(`Updated:     ${chalk.cyan(manifest.updatedAt)}`);
+        return;
+    }
+    const spinner = ora('Preparing to index').start();
+    try {
+        if (!container.codebaseScanner || !container.codeChunker || !container.codebaseIndexRepository) {
+            throw new Error('Codebase indexer dependencies are not available');
+        }
+        const useCase = new IndexCodebaseUseCase(container.projectResolver, container.codebaseScanner, container.codeChunker, container.codebaseIndexRepository, container.memoryRepository, container.vectorIndex, container.embeddingProvider);
+        let currentFile = 0;
+        let totalFiles = 0;
+        const result = await useCase.execute({
+            projectPath,
+            projectId,
+            force: options.force,
+            dryRun: options.dryRun,
+        }, {
+            onScanStart: () => {
+                spinner.text = 'Scanning project files...';
+            },
+            onScanComplete: (files) => {
+                totalFiles = files.length;
+                spinner.text = `Found ${files.length} files to analyze`;
+                if (files.length > 0) {
+                    console.log(chalk.gray(`Found ${files.length} files`));
+                }
+            },
+            onFileStart: (file, current, total) => {
+                currentFile = current;
+                spinner.text = `Indexing file ${current}/${total}: ${file.relativePath}`;
+            },
+            onFileComplete: (file, chunks, current, total) => {
+                currentFile = current;
+                spinner.text = `Indexed ${current}/${total}: ${file.relativePath} (${chunks} chunks)`;
+                if (current % 10 === 0 || current === total) {
+                    console.log(chalk.gray(`Indexed ${current}/${total} files`));
+                }
+            },
+            onSavingStart: () => {
+                spinner.text = 'Saving index manifest...';
+                console.log(chalk.gray('Saving index manifest...'));
+            },
+            onSavingComplete: () => {
+                spinner.text = 'Finalizing...';
+            },
+        });
+        spinner.stop();
+        console.log(chalk.bold('Codebase indexed'));
+        console.log();
+        console.log(`Project:        ${chalk.cyan(result.projectId)}`);
+        console.log(`Files scanned:  ${chalk.cyan(result.scanned)}`);
+        console.log(`Files indexed:  ${chalk.cyan(result.indexed)}`);
+        console.log(`Files removed:  ${chalk.cyan(result.removed)}`);
+        if (options.dryRun) {
+            console.log(chalk.gray('(dry run — no changes saved)'));
+        }
+    }
+    catch (error) {
+        spinner.fail(`Indexing failed: ${error instanceof Error ? error.message : error}`);
+        process.exit(1);
+    }
 });
 async function openEditor(content) {
     const editor = process.env.EDITOR ?? 'nano';

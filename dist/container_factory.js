@@ -9,6 +9,9 @@ import { LocalEnrichmentProvider } from './infrastructure/local_enrichment_provi
 import { MemoryEnrichmentService } from './domain/services/memory_enrichment.js';
 import { defaultVaultPath } from './infrastructure/vault_initializer.js';
 import { CwdProjectResolver } from './infrastructure/cwd_project_resolver.js';
+import { FileCodebaseScanner } from './infrastructure/file_codebase_scanner.js';
+import { LineCodeChunker } from './infrastructure/line_code_chunker.js';
+import { FileCodebaseIndexRepository } from './infrastructure/file_codebase_index_repository.js';
 export async function createDefaultContainer(vaultPath) {
     const configStore = new YamlConfigStore();
     const config = await configStore.load();
@@ -29,6 +32,9 @@ export async function createDefaultContainer(vaultPath) {
     const enrichmentProvider = new LocalEnrichmentProvider();
     const enrichmentService = new MemoryEnrichmentService(memoryRepository, vectorIndex, embeddingProvider, enrichmentProvider, { confidenceThreshold: 0.5, maxTags: 10, maxEntities: 10 });
     const projectResolver = new CwdProjectResolver({ configStore });
+    const codebaseScanner = new FileCodebaseScanner();
+    const codeChunker = new LineCodeChunker();
+    const codebaseIndexRepository = new FileCodebaseIndexRepository({ basePath });
     return {
         memoryRepository,
         sessionRepository,
@@ -37,6 +43,9 @@ export async function createDefaultContainer(vaultPath) {
         configStore,
         projectResolver,
         enrichmentService,
+        codebaseScanner,
+        codeChunker,
+        codebaseIndexRepository,
     };
 }
 //# sourceMappingURL=container_factory.js.map

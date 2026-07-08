@@ -14,6 +14,7 @@ export interface GetContextOutput {
   user_memory: string;
   project_memory: string;
   global_memory: string;
+  code_context: string;
   recent_sessions: string[];
   relevant_memories: string[];
 }
@@ -31,6 +32,7 @@ export class GetContextUseCase {
       findGlobalMemories: (limit) => this.findGlobalMemories(limit),
       findRecentSessions: (projectId, limit) => this.sessionRepository.listRecent(limit, projectId),
       findRelevantMemories: (projectId, mode, limit) => this.findRelevantMemories(projectId, mode, limit),
+      findCodeMemories: (projectId, mode, limit) => this.findCodeMemories(projectId, mode, limit),
     });
 
     const result = await builder.build({
@@ -39,12 +41,14 @@ export class GetContextUseCase {
       mode: input.mode,
       recentSessionCount: 3,
       relevantMemoryCount: 5,
+      codeContextCount: 5,
     });
 
     return {
       user_memory: result.userMemory,
       project_memory: result.projectMemory,
       global_memory: result.globalMemory,
+      code_context: result.codeContext,
       recent_sessions: result.recentSessions,
       relevant_memories: result.relevantMemories,
     };
@@ -93,5 +97,24 @@ export class GetContextUseCase {
 
     const merged = [...projectResults, ...globalResults].sort((a, b) => b.score - a.score);
     return merged.slice(0, limit).map((r) => r.memory);
+  }
+
+  private async findCodeMemories(
+    projectId: string,
+    mode?: string,
+    limit = 5
+  ): Promise<Memory[]> {
+    const query = mode ? `code ${projectId} ${mode}` : `code ${projectId}`;
+    const results = await this.memoryRepository.searchWithScore({
+      query,
+      scope: `project/${projectId}`,
+      limit,
+    });
+
+    return results
+      .filter((r) => r.memory.source === 'codebase-indexer' || r.memory.tags.includes('code'))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((r) => r.memory);
   }
 }

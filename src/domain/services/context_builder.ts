@@ -7,12 +7,14 @@ export interface ContextInput {
   mode?: string;
   recentSessionCount?: number;
   relevantMemoryCount?: number;
+  codeContextCount?: number;
 }
 
 export interface ContextOutput {
   userMemory: string;
   projectMemory: string;
   globalMemory: string;
+  codeContext: string;
   recentSessions: string[];
   relevantMemories: string[];
 }
@@ -23,6 +25,7 @@ export interface ContextBuilderDependencies {
   findGlobalMemories(limit: number): Promise<Memory[]>;
   findRecentSessions(projectId: string, limit: number): Promise<Session[]>;
   findRelevantMemories(projectId: string, mode?: string, limit?: number): Promise<Memory[]>;
+  findCodeMemories(projectId: string, mode?: string, limit?: number): Promise<Memory[]>;
 }
 
 export class ContextBuilder {
@@ -35,18 +38,21 @@ export class ContextBuilder {
       globalMemories,
       recentSessions,
       relevantMemories,
+      codeMemories,
     ] = await Promise.all([
       this.deps.findUserMemory(),
       this.deps.findProjectMemory(input.projectId),
       this.deps.findGlobalMemories(2),
       this.deps.findRecentSessions(input.projectId, input.recentSessionCount ?? 3),
       this.deps.findRelevantMemories(input.projectId, input.mode, input.relevantMemoryCount ?? 5),
+      this.deps.findCodeMemories(input.projectId, input.mode, input.codeContextCount ?? 5),
     ]);
 
     return {
       userMemory: this.renderMemory(userMemory, 'No user memory yet.'),
       projectMemory: this.renderMemory(projectMemory, 'No project memory yet.'),
       globalMemory: this.renderGlobalMemories(globalMemories),
+      codeContext: this.renderCodeMemories(codeMemories),
       recentSessions: recentSessions.map((s) => this.renderSession(s)),
       relevantMemories: relevantMemories.map((m) => this.renderMemory(m, '')),
     };
@@ -59,6 +65,11 @@ export class ContextBuilder {
 
   private renderGlobalMemories(memories: Memory[]): string {
     if (memories.length === 0) return 'No global memory yet.';
+    return memories.map((m) => this.renderMemory(m, '')).join('\n\n');
+  }
+
+  private renderCodeMemories(memories: Memory[]): string {
+    if (memories.length === 0) return 'No indexed code context yet.';
     return memories.map((m) => this.renderMemory(m, '')).join('\n\n');
   }
 

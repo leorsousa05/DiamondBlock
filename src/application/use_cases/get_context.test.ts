@@ -53,6 +53,7 @@ describe('GetContextUseCase', () => {
     expect(context.user_memory).toContain('User Preferences');
     expect(context.project_memory).toContain('Demo');
     expect(context.global_memory).toContain('Global Knowledge');
+    expect(context.code_context).toBe('No indexed code context yet.');
   });
 
   it('only returns user memory with type user and scope user', async () => {

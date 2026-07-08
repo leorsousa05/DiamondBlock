@@ -9,6 +9,9 @@ import { LocalEnrichmentProvider } from './infrastructure/local_enrichment_provi
 import { MemoryEnrichmentService } from './domain/services/memory_enrichment.js';
 import { defaultVaultPath } from './infrastructure/vault_initializer.js';
 import { CwdProjectResolver } from './infrastructure/cwd_project_resolver.js';
+import { FileCodebaseScanner } from './infrastructure/file_codebase_scanner.js';
+import { LineCodeChunker } from './infrastructure/line_code_chunker.js';
+import { FileCodebaseIndexRepository } from './infrastructure/file_codebase_index_repository.js';
 import type { Container } from './container.js';
 
 export async function createDefaultContainer(vaultPath?: string): Promise<Container> {
@@ -40,6 +43,9 @@ export async function createDefaultContainer(vaultPath?: string): Promise<Contai
   );
 
   const projectResolver = new CwdProjectResolver({ configStore });
+  const codebaseScanner = new FileCodebaseScanner();
+  const codeChunker = new LineCodeChunker();
+  const codebaseIndexRepository = new FileCodebaseIndexRepository({ basePath });
 
   return {
     memoryRepository,
@@ -49,5 +55,8 @@ export async function createDefaultContainer(vaultPath?: string): Promise<Contai
     configStore,
     projectResolver,
     enrichmentService,
+    codebaseScanner,
+    codeChunker,
+    codebaseIndexRepository,
   };
 }

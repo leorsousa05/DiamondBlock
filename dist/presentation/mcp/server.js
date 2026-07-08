@@ -13,6 +13,7 @@ import { SearchMemoryUseCase } from '../../application/use_cases/search_memory.j
 import { UpdateMemoryUseCase } from '../../application/use_cases/update_memory.js';
 import { DeleteMemoryUseCase } from '../../application/use_cases/delete_memory.js';
 import { LogSessionUseCase } from '../../application/use_cases/log_session.js';
+import { IndexCodebaseUseCase } from '../../application/use_cases/index_codebase.js';
 import { Scope } from '../../domain/scope.js';
 const DEBUG = process.env.DIAMONDBLOCK_DEBUG === 'true';
 function debugLog(message) {
@@ -70,6 +71,12 @@ const logSessionInputSchema = z.object({
         content: z.string(),
         timestamp: z.string().datetime().optional(),
     })),
+});
+export const indexCodebaseInputSchema = z.object({
+    project_id: z.string().optional(),
+    path: z.string().optional(),
+    force: z.boolean().optional(),
+    dry_run: z.boolean().optional(),
 });
 const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'package.json');
 const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
@@ -184,6 +191,20 @@ export async function startMcpServer() {
                     required: ['session_id', 'project_id', 'messages'],
                 },
             },
+            {
+                name: 'index_codebase',
+                description: 'Index a codebase into the vault for semantic code search',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        project_id: { type: 'string' },
+                        path: { type: 'string' },
+                        force: { type: 'boolean' },
+                        dry_run: { type: 'boolean' },
+                    },
+                    required: [],
+                },
+            },
         ],
     }));
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -277,6 +298,22 @@ export async function startMcpServer() {
                     });
                     return {
                         content: [{ type: 'text', text: JSON.stringify({ success: true }) }],
+                    };
+                }
+                case 'index_codebase': {
+                    const input = indexCodebaseInputSchema.parse(args);
+                    if (!container.codebaseScanner || !container.codeChunker || !container.codebaseIndexRepository) {
+                        throw new Error('Codebase indexer dependencies are not available');
+                    }
+                    const useCase = new IndexCodebaseUseCase(container.projectResolver, container.codebaseScanner, container.codeChunker, container.codebaseIndexRepository, container.memoryRepository, container.vectorIndex, container.embeddingProvider);
+                    const result = await useCase.execute({
+                        projectPath: input.path,
+                        projectId: input.project_id,
+                        force: input.force,
+                        dryRun: input.dry_run,
+                    });
+                    return {
+                        content: [{ type: 'text', text: JSON.stringify(result) }],
                     };
                 }
                 default:

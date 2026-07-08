@@ -1,0 +1,323 @@
+import { access, constants, readdir, readFile, stat } from 'node:fs/promises';
+import { join, relative, sep } from 'node:path';
+import type { CodebaseScanner, CodebaseScannerOptions, SourceFile } from '../application/ports/codebase_scanner.js';
+
+const DEFAULT_INCLUDE_EXTENSIONS = new Set([
+  // JavaScript / TypeScript ecosystem
+  'ts',
+  'tsx',
+  'js',
+  'jsx',
+  'mjs',
+  'cjs',
+  'mts',
+  'cts',
+  // Java / JVM
+  'java',
+  'kt',
+  'kts',
+  'groovy',
+  'scala',
+  'jsp',
+  'jspx',
+  // Python
+  'py',
+  'pyi',
+  // Systems
+  'c',
+  'cpp',
+  'cc',
+  'cxx',
+  'h',
+  'hpp',
+  'rs',
+  'go',
+  // .NET
+  'cs',
+  'fs',
+  'fsx',
+  'vb',
+  // Mobile / Apple
+  'swift',
+  'm',
+  'mm',
+  // Web
+  'html',
+  'htm',
+  'xhtml',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'vue',
+  'svelte',
+  'astro',
+  // Ruby / PHP / Perl
+  'rb',
+  'erb',
+  'php',
+  'phtml',
+  'pl',
+  'pm',
+  // Shell / scripts
+  'sh',
+  'bash',
+  'zsh',
+  'fish',
+  'ps1',
+  'psm1',
+  'bat',
+  'cmd',
+  // Config / data
+  'json',
+  'jsonc',
+  'json5',
+  'yaml',
+  'yml',
+  'toml',
+  'xml',
+  'xsd',
+  'xsl',
+  'xslt',
+  'ini',
+  'cfg',
+  'conf',
+  'config',
+  'env',
+  'properties',
+  // Docs
+  'md',
+  'mdx',
+  'markdown',
+  'rst',
+  'txt',
+  // Database
+  'sql',
+  // Docker
+  'dockerfile',
+]);
+
+const ALWAYS_IGNORED_DIRS = new Set([
+  '.git',
+  'node_modules',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  '.venv',
+  'venv',
+  'target',
+  '.next',
+  '.nuxt',
+  '.cache',
+  'vendor',
+  '__pycache__',
+  '.turbo',
+  '.svelte-kit',
+  '.vercel',
+  'logs',
+]);
+
+const DEFAULT_MAX_FILE_SIZE_BYTES = 1024 * 1024;
+
+interface GitignoreRule {
+  pattern: string;
+  isDirectory: boolean;
+  isNegated: boolean;
+  anchored: boolean;
+}
+
+const SPECIAL_FILE_NAMES = [
+  'dockerfile',
+  '.eslintrc',
+  '.prettierrc',
+  '.babelrc',
+  '.nycrc',
+  '.editorconfig',
+  '.gitattributes',
+  '.gitignore',
+  'makefile',
+  'rakefile',
+  'gemfile',
+] as const;
+
+type SpecialFileName = (typeof SPECIAL_FILE_NAMES)[number];
+
+const SPECIAL_FILE_SET = new Set<SpecialFileName>(SPECIAL_FILE_NAMES);
+const SPECIAL_FILE_EXTENSIONS = new Set<SpecialFileName>(SPECIAL_FILE_NAMES);
+
+export class FileCodebaseScanner implements CodebaseScanner {
+  async scan(options: CodebaseScannerOptions): Promise<SourceFile[]> {
+    const rootPath = options.rootPath;
+    await this.validateRootPath(rootPath);
+
+    const includeExtensions = options.includeExtensions
+      ? new Set(options.includeExtensions.map((e) => e.toLowerCase().replace(/^\./, '')))
+      : DEFAULT_INCLUDE_EXTENSIONS;
+    const maxFileSizeBytes = options.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
+    const respectGitignore = options.respectGitignore ?? true;
+
+    const gitignoreRules = respectGitignore ? await this.loadGitignoreRules(rootPath) : [];
+    const results: SourceFile[] = [];
+
+    await this.walk(rootPath, rootPath, includeExtensions, maxFileSizeBytes, gitignoreRules, results);
+
+    return results.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  }
+
+  private async validateRootPath(rootPath: string): Promise<void> {
+    try {
+      await access(rootPath, constants.R_OK | constants.X_OK);
+    } catch {
+      throw new Error(`Cannot access codebase root path: ${rootPath}`);
+    }
+  }
+
+  private async walk(
+    dir: string,
+    rootPath: string,
+    includeExtensions: Set<string>,
+    maxFileSizeBytes: number,
+    gitignoreRules: GitignoreRule[],
+    results: SourceFile[]
+  ): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const absolutePath = join(dir, entry.name);
+      const relativePath = relative(rootPath, absolutePath);
+      const normalizedRelative = relativePath.split(sep).join('/');
+
+      if (entry.isDirectory()) {
+        if (ALWAYS_IGNORED_DIRS.has(entry.name)) continue;
+        if (this.isIgnored(normalizedRelative, true, gitignoreRules)) continue;
+        await this.walk(
+          absolutePath,
+          rootPath,
+          includeExtensions,
+          maxFileSizeBytes,
+          gitignoreRules,
+          results
+        );
+        continue;
+      }
+
+      if (!entry.isFile()) continue;
+      if (this.isIgnored(normalizedRelative, false, gitignoreRules)) continue;
+
+      const ext = this.getExtension(entry.name);
+      const lowerFileName = entry.name.toLowerCase();
+      const isSpecialFile = SPECIAL_FILE_SET.has(lowerFileName as SpecialFileName);
+      if (!isSpecialFile && !includeExtensions.has(ext)) continue;
+
+      const fileStat = await stat(absolutePath);
+      if (fileStat.size > maxFileSizeBytes) continue;
+
+      results.push({
+        absolutePath,
+        relativePath: normalizedRelative,
+      });
+    }
+  }
+
+  private getExtension(fileName: string): string {
+    const lower = fileName.toLowerCase();
+
+    if (SPECIAL_FILE_EXTENSIONS.has(lower as SpecialFileName)) return lower;
+
+    const dotIndex = lower.lastIndexOf('.');
+    return dotIndex > 0 ? lower.slice(dotIndex + 1) : '';
+  }
+
+  private async loadGitignoreRules(rootPath: string): Promise<GitignoreRule[]> {
+    try {
+      const content = await readFile(join(rootPath, '.gitignore'), 'utf-8');
+      return content
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0 && !line.startsWith('#'))
+        .map((line) => this.parseGitignoreLine(line));
+    } catch {
+      return [];
+    }
+  }
+
+  private parseGitignoreLine(line: string): GitignoreRule {
+    let pattern = line;
+    const isNegated = pattern.startsWith('!');
+    if (isNegated) pattern = pattern.slice(1);
+
+    const isDirectory = pattern.endsWith('/');
+    if (isDirectory) pattern = pattern.slice(0, -1);
+
+    const anchored = pattern.startsWith('/');
+    if (anchored) pattern = pattern.slice(1);
+
+    return { pattern, isDirectory, isNegated, anchored };
+  }
+
+  private isIgnored(relativePath: string, isDirectory: boolean, rules: GitignoreRule[]): boolean {
+    let ignored = false;
+
+    for (const rule of rules) {
+      const matches = this.ruleMatches(relativePath, isDirectory, rule);
+      if (!matches) continue;
+      ignored = !rule.isNegated;
+    }
+
+    return ignored;
+  }
+
+  private ruleMatches(relativePath: string, isDirectory: boolean, rule: GitignoreRule): boolean {
+    if (rule.isDirectory && !isDirectory) return false;
+
+    const parts = relativePath.split('/');
+    const fileName = parts[parts.length - 1];
+
+    if (rule.anchored) {
+      return this.matchPattern(relativePath, rule.pattern);
+    }
+
+    if (rule.pattern.includes('/')) {
+      return this.matchPattern(relativePath, rule.pattern);
+    }
+
+    for (const part of parts) {
+      if (this.matchPattern(part, rule.pattern)) return true;
+    }
+
+    return false;
+  }
+
+  private matchPattern(value: string, pattern: string): boolean {
+    const regex = this.gitignorePatternToRegex(pattern);
+    return regex.test(value);
+  }
+
+  private gitignorePatternToRegex(pattern: string): RegExp {
+    let regex = '';
+    let i = 0;
+    while (i < pattern.length) {
+      const char = pattern[i];
+      if (char === '*') {
+        if (pattern[i + 1] === '*') {
+          regex += '.*';
+          i += 2;
+        } else {
+          regex += '[^/]*';
+          i++;
+        }
+      } else if (char === '?') {
+        regex += '[^/]';
+        i++;
+      } else if (char === '.') {
+        regex += '\\.';
+        i++;
+      } else {
+        regex += char;
+        i++;
+      }
+    }
+    return new RegExp(`^${regex}$`);
+  }
+}

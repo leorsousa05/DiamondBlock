@@ -4,17 +4,19 @@ export class ContextBuilder {
         this.deps = deps;
     }
     async build(input) {
-        const [userMemory, projectMemory, globalMemories, recentSessions, relevantMemories,] = await Promise.all([
+        const [userMemory, projectMemory, globalMemories, recentSessions, relevantMemories, codeMemories,] = await Promise.all([
             this.deps.findUserMemory(),
             this.deps.findProjectMemory(input.projectId),
             this.deps.findGlobalMemories(2),
             this.deps.findRecentSessions(input.projectId, input.recentSessionCount ?? 3),
             this.deps.findRelevantMemories(input.projectId, input.mode, input.relevantMemoryCount ?? 5),
+            this.deps.findCodeMemories(input.projectId, input.mode, input.codeContextCount ?? 5),
         ]);
         return {
             userMemory: this.renderMemory(userMemory, 'No user memory yet.'),
             projectMemory: this.renderMemory(projectMemory, 'No project memory yet.'),
             globalMemory: this.renderGlobalMemories(globalMemories),
+            codeContext: this.renderCodeMemories(codeMemories),
             recentSessions: recentSessions.map((s) => this.renderSession(s)),
             relevantMemories: relevantMemories.map((m) => this.renderMemory(m, '')),
         };
@@ -27,6 +29,11 @@ export class ContextBuilder {
     renderGlobalMemories(memories) {
         if (memories.length === 0)
             return 'No global memory yet.';
+        return memories.map((m) => this.renderMemory(m, '')).join('\n\n');
+    }
+    renderCodeMemories(memories) {
+        if (memories.length === 0)
+            return 'No indexed code context yet.';
         return memories.map((m) => this.renderMemory(m, '')).join('\n\n');
     }
     renderSession(session) {

@@ -1,0 +1,34 @@
+id: '006'
+slug: codebase-indexer
+status: completed
+title: Add codebase indexer with chunking and embeddings for coding agent context
+author: architect
+created_at: '2026-07-08'
+updated_at: '2026-07-08'
+type: feat
+scope:
+  - src/domain/code_chunk.ts
+  - src/domain/code_chunk.test.ts
+  - src/application/ports/codebase_scanner.ts
+  - src/application/ports/code_chunker.ts
+  - src/application/ports/codebase_index_repository.ts
+  - src/application/use_cases/index_codebase.ts
+  - src/application/use_cases/index_codebase.test.ts
+  - src/infrastructure/file_codebase_scanner.ts
+  - src/infrastructure/file_codebase_scanner.test.ts
+  - src/infrastructure/line_code_chunker.ts
+  - src/infrastructure/line_code_chunker.test.ts
+  - src/infrastructure/file_codebase_index_repository.ts
+  - src/infrastructure/file_codebase_index_repository.test.ts
+  - src/infrastructure/codebase_indexer.ts
+  - src/infrastructure/codebase_indexer.test.ts
+  - src/domain/services/context_builder.ts
+  - src/domain/services/context_builder.test.ts
+  - src/application/use_cases/get_context.ts
+  - src/application/use_cases/get_context.test.ts
+  - src/presentation/cli/index.ts
+  - src/presentation/mcp/server.ts
+  - src/presentation/mcp/server.test.ts
+  - src/container.ts
+  - src/container_factory.ts
+  - specs/living/diamondblock-core.md
