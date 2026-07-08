@@ -4,7 +4,8 @@ import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
@@ -27,10 +28,20 @@ import type { ProjectResolver } from '../../application/ports/project_resolver.j
 
 const program = new Command();
 
+const packageJsonPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  'package.json'
+);
+
+const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8')) as { version: string };
+
 program
   .name('diamondblock')
   .description('DiamondBlock — local AI memory')
-  .version('0.1.0')
+  .version(packageJson.version)
   .option('--vault <path>', 'path to DiamondBlock vault');
 
 async function loadContainer(vaultPath?: string) {

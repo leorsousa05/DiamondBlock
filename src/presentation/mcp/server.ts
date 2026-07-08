@@ -5,6 +5,8 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import { readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getContainer, setContainer } from '../../container.js';
 import { createDefaultContainer } from '../../container_factory.js';
@@ -82,13 +84,22 @@ const logSessionInputSchema = z.object({
   ),
 });
 
+const packageJsonPath = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  'package.json'
+);
+const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8')) as { version: string };
+
 export async function startMcpServer(): Promise<void> {
   const container = getContainer();
 
   const server = new Server(
     {
       name: 'diamondblock',
-      version: '0.1.0',
+      version: packageJson.version,
     },
     {
       capabilities: {
