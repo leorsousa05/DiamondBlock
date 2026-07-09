@@ -7,8 +7,9 @@ import type { MemoryEnrichmentService } from './domain/services/memory_enrichmen
 
 import type { ProjectResolver } from './application/ports/project_resolver.js';
 import type { CodebaseScanner } from './application/ports/codebase_scanner.js';
-import type { CodeChunker } from './application/ports/code_chunker.js';
 import type { CodebaseIndexRepository } from './application/ports/codebase_index_repository.js';
+import type { CodebaseChunkRepository } from './application/ports/codebase_chunk_repository.js';
+import type { ParsingPipeline } from './infrastructure/parsing_pipeline.js';
 
 export interface Container {
   memoryRepository: MemoryRepository;
@@ -19,8 +20,10 @@ export interface Container {
   projectResolver: ProjectResolver;
   enrichmentService?: MemoryEnrichmentService;
   codebaseScanner?: CodebaseScanner;
-  codeChunker?: CodeChunker;
+  parsingPipeline?: ParsingPipeline;
   codebaseIndexRepository?: CodebaseIndexRepository;
+  codebaseChunkRepository?: CodebaseChunkRepository;
+  orphanedChunkCleaner?: import('./domain/services/orphaned_chunk_cleaner.js').OrphanedChunkCleaner;
 }
 
 let container: Container | null = null;

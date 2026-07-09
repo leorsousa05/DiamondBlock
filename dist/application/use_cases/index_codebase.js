@@ -3,17 +3,19 @@ import { CodebaseIndexer } from '../../infrastructure/codebase_indexer.js';
 export class IndexCodebaseUseCase {
     projectResolver;
     codebaseScanner;
-    codeChunker;
+    parsingPipeline;
     codebaseIndexRepository;
+    codebaseChunkRepository;
     memoryRepository;
     vectorIndex;
     embeddingProvider;
     indexerFactory;
-    constructor(projectResolver, codebaseScanner, codeChunker, codebaseIndexRepository, memoryRepository, vectorIndex, embeddingProvider, indexerFactory) {
+    constructor(projectResolver, codebaseScanner, parsingPipeline, codebaseIndexRepository, codebaseChunkRepository, memoryRepository, vectorIndex, embeddingProvider, indexerFactory) {
         this.projectResolver = projectResolver;
         this.codebaseScanner = codebaseScanner;
-        this.codeChunker = codeChunker;
+        this.parsingPipeline = parsingPipeline;
         this.codebaseIndexRepository = codebaseIndexRepository;
+        this.codebaseChunkRepository = codebaseChunkRepository;
         this.memoryRepository = memoryRepository;
         this.vectorIndex = vectorIndex;
         this.embeddingProvider = embeddingProvider;
@@ -32,19 +34,20 @@ export class IndexCodebaseUseCase {
             }
             projectId = projectInfo.projectId;
         }
+        await this.cleanupLegacyManifest(projectId);
         const indexer = this.indexerFactory?.({
             scanner: this.codebaseScanner,
-            chunker: this.codeChunker,
+            pipeline: this.parsingPipeline,
             indexRepository: this.codebaseIndexRepository,
-            memoryRepository: this.memoryRepository,
+            codebaseChunkRepository: this.codebaseChunkRepository,
             vectorIndex: this.vectorIndex,
             embeddingProvider: this.embeddingProvider,
         }) ??
             new CodebaseIndexer({
                 scanner: this.codebaseScanner,
-                chunker: this.codeChunker,
+                pipeline: this.parsingPipeline,
                 indexRepository: this.codebaseIndexRepository,
-                memoryRepository: this.memoryRepository,
+                codebaseChunkRepository: this.codebaseChunkRepository,
                 vectorIndex: this.vectorIndex,
                 embeddingProvider: this.embeddingProvider,
             });
@@ -63,6 +66,42 @@ export class IndexCodebaseUseCase {
             chunksCreated: result.chunksCreated,
             chunksRemoved: result.chunksRemoved,
         };
+    }
+    async cleanupLegacyManifest(projectId) {
+        const manifest = await this.codebaseIndexRepository.load(projectId);
+        if (!manifest)
+            return;
+        const hasLegacyEntries = Object.values(manifest.files).some((entry) => 'memoryIds' in entry && Array.isArray(entry.memoryIds));
+        if (!hasLegacyEntries)
+            return;
+        // Remove old code memories referenced by the legacy manifest and their vectors,
+        // then delete the manifest so the indexer will treat every file as new.
+        const referencedMemoryIds = new Set();
+        for (const entry of Object.values(manifest.files)) {
+            const legacyEntry = entry;
+            if ('memoryIds' in legacyEntry && Array.isArray(legacyEntry.memoryIds)) {
+                for (const id of legacyEntry.memoryIds) {
+                    if (typeof id === 'string') {
+                        referencedMemoryIds.add(id);
+                    }
+                }
+            }
+        }
+        for (const memoryId of referencedMemoryIds) {
+            try {
+                await this.memoryRepository.delete(memoryId);
+            }
+            catch {
+                // ignore
+            }
+            try {
+                await this.vectorIndex.remove(memoryId);
+            }
+            catch {
+                // ignore
+            }
+        }
+        await this.codebaseIndexRepository.delete(projectId);
     }
 }
 //# sourceMappingURL=index_codebase.js.map

@@ -302,10 +302,10 @@ export async function startMcpServer() {
                 }
                 case 'index_codebase': {
                     const input = indexCodebaseInputSchema.parse(args);
-                    if (!container.codebaseScanner || !container.codeChunker || !container.codebaseIndexRepository) {
+                    if (!container.codebaseScanner || !container.parsingPipeline || !container.codebaseIndexRepository || !container.codebaseChunkRepository) {
                         throw new Error('Codebase indexer dependencies are not available');
                     }
-                    const useCase = new IndexCodebaseUseCase(container.projectResolver, container.codebaseScanner, container.codeChunker, container.codebaseIndexRepository, container.memoryRepository, container.vectorIndex, container.embeddingProvider);
+                    const useCase = new IndexCodebaseUseCase(container.projectResolver, container.codebaseScanner, container.parsingPipeline, container.codebaseIndexRepository, container.codebaseChunkRepository, container.memoryRepository, container.vectorIndex, container.embeddingProvider);
                     const result = await useCase.execute({
                         projectPath: input.path,
                         projectId: input.project_id,

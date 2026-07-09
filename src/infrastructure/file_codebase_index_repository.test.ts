@@ -28,7 +28,7 @@ describe('FileCodebaseIndexRepository', () => {
       relativePath: 'src/foo.ts',
       contentHash: 'abc123',
       indexedAt: new Date().toISOString(),
-      memoryIds: ['chunk_1'],
+      chunkIds: ['chunk_1'],
     };
 
     await repo.save(manifest);

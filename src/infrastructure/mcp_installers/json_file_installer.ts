@@ -22,6 +22,10 @@ export abstract class JsonFileMcpInstaller implements McpInstaller {
   abstract readonly agent: string;
   protected abstract configPath(): string;
   protected abstract serverKey(): string;
+
+  getConfigPath(): string {
+    return this.configPath();
+  }
   protected detectedCommands(): string[] {
     return [];
   }

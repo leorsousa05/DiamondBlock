@@ -1,21 +1,21 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import type { CodebaseScanner } from '../application/ports/codebase_scanner.js';
-import type { CodeChunker } from '../application/ports/code_chunker.js';
+import type { ParsingPipeline } from './parsing_pipeline.js';
 import type { CodebaseIndexRepository } from '../application/ports/codebase_index_repository.js';
-import type { MemoryRepository } from '../application/ports/memory_repository.js';
+import type { CodebaseChunkRepository } from '../application/ports/codebase_chunk_repository.js';
 import type { VectorIndex } from '../application/ports/vector_index.js';
 import type { EmbeddingProvider } from '../application/ports/embedding_provider.js';
 import type { SourceFile } from '../application/ports/codebase_scanner.js';
-import { createCodeChunk, codeChunkToMemory } from '../domain/code_chunk.js';
-import { createMemory } from '../domain/memory.js';
+import { createCodeChunk } from '../domain/code_chunk.js';
+import { createCodebaseChunkFromCodeChunk } from '../domain/code_chunk.js';
 import { createEmptyManifest, createFileIndexEntry } from './file_codebase_index_repository.js';
 
 export interface CodebaseIndexerOptions {
   scanner: CodebaseScanner;
-  chunker: CodeChunker;
+  pipeline: ParsingPipeline;
   indexRepository: CodebaseIndexRepository;
-  memoryRepository: MemoryRepository;
+  codebaseChunkRepository: CodebaseChunkRepository;
   vectorIndex: VectorIndex;
   embeddingProvider: EmbeddingProvider;
 }
@@ -52,8 +52,9 @@ export class CodebaseIndexer {
     const files = await this.options.scanner.scan({ rootPath });
     progress?.onScanComplete?.(files);
 
-    const previousManifest = (await this.options.indexRepository.load(projectId)) ?? createEmptyManifest(projectId, rootPath);
-    const previousFiles = previousManifest.files;
+    const previousManifest = await this.options.indexRepository.load(projectId);
+    const isLegacyManifest = this.hasLegacyMemoryIds(previousManifest);
+    const previousFiles = isLegacyManifest ? {} : previousManifest?.files ?? {};
 
     const currentHashes = await this.computeHashes(files);
 
@@ -69,7 +70,7 @@ export class CodebaseIndexer {
       const previous = previousFiles[file.relativePath];
       if (!previous) {
         added.push(file);
-      } else if (previous.contentHash !== hash || options.force) {
+      } else if (previous.contentHash !== hash || options.force || isLegacyManifest) {
         updated.push(file);
       } else {
         unchanged.push(file);
@@ -83,7 +84,7 @@ export class CodebaseIndexer {
     }
 
     const manifest = createEmptyManifest(projectId, rootPath);
-    manifest.createdAt = previousManifest.createdAt;
+    manifest.createdAt = previousManifest?.createdAt ?? manifest.createdAt;
     let chunksCreated = 0;
     let chunksRemoved = 0;
 
@@ -99,11 +100,11 @@ export class CodebaseIndexer {
     for (let i = 0; i < filesToIndex.length; i++) {
       const file = filesToIndex[i];
       progress?.onFileStart?.(file, i + 1, filesToIndex.length);
-      const memoryIds = await this.indexFile(projectId, file);
-      progress?.onFileComplete?.(file, memoryIds.length, i + 1, filesToIndex.length);
-      chunksCreated += memoryIds.length;
+      const chunkIds = await this.indexFile(projectId, file);
+      progress?.onFileComplete?.(file, chunkIds.length, i + 1, filesToIndex.length);
+      chunksCreated += chunkIds.length;
       const hash = currentHashes.get(file.relativePath)!;
-      manifest.files[file.relativePath] = createFileIndexEntry(file.relativePath, hash, memoryIds);
+      manifest.files[file.relativePath] = createFileIndexEntry(file.relativePath, hash, chunkIds);
     }
 
     progress?.onSavingStart?.();
@@ -111,8 +112,8 @@ export class CodebaseIndexer {
     for (const relativePath of removed) {
       const entry = previousFiles[relativePath];
       if (entry) {
-        chunksRemoved += entry.memoryIds.length;
-        await this.removeMemories(entry.memoryIds);
+        chunksRemoved += entry.chunkIds.length;
+        await this.removeChunks(entry.chunkIds);
       }
     }
 
@@ -120,6 +121,11 @@ export class CodebaseIndexer {
     progress?.onSavingComplete?.();
 
     return { added, updated, removed, unchanged, chunksCreated, chunksRemoved };
+  }
+
+  private hasLegacyMemoryIds(manifest: import('../application/ports/codebase_index_repository.js').CodebaseIndexManifest | null): boolean {
+    if (!manifest) return false;
+    return Object.values(manifest.files).some((entry) => 'memoryIds' in entry && Array.isArray((entry as Record<string, unknown>).memoryIds));
   }
 
   private async computeHashes(files: SourceFile[]): Promise<Map<string, string>> {
@@ -136,39 +142,49 @@ export class CodebaseIndexer {
 
   private async indexFile(projectId: string, file: SourceFile): Promise<string[]> {
     const content = await readFile(file.absolutePath, 'utf-8');
-    const chunkInputs = await this.options.chunker.chunk(file, content);
-    const chunks = chunkInputs.map((input) => createCodeChunk(input));
-    const memoryIds: string[] = [];
+    const parsingResult = await this.options.pipeline.process(file, content);
+    const chunks = parsingResult.chunks.map((input) => createCodeChunk(input));
+    const chunkIds: string[] = [];
 
     for (const chunk of chunks) {
-      const memoryInput = codeChunkToMemory(chunk, projectId);
-      const memory = createMemory(memoryInput, chunk.id);
-      await this.options.memoryRepository.save(memory);
-      memoryIds.push(memory.id);
+      const chunkInput = createCodebaseChunkFromCodeChunk(chunk, projectId);
+      const now = new Date();
+      const codebaseChunk = {
+        ...chunkInput,
+        type: 'code',
+        scope: `project/${projectId}`,
+        tags: chunkInput.tags ?? [chunk.language || 'unknown'],
+        confidence: chunkInput.confidence ?? 1.0,
+        source: chunkInput.source ?? 'codebase-indexer',
+        createdAt: now,
+        updatedAt: now,
+      };
+      await this.options.codebaseChunkRepository.save(codebaseChunk);
+      chunkIds.push(codebaseChunk.id);
 
       if (await this.options.embeddingProvider.isAvailable()) {
         try {
-          const text = `${memory.title}\n${memory.content}`;
+          const text = `${codebaseChunk.title}\n${codebaseChunk.content}`;
           const embedding = await this.options.embeddingProvider.embed(text);
-          await this.options.vectorIndex.index(memory, embedding);
+          await this.options.vectorIndex.index(codebaseChunk, embedding);
         } catch (error) {
           console.warn(
-            `Failed to embed chunk ${memory.id}: ${error instanceof Error ? error.message : String(error)}`
+            `Failed to embed chunk ${codebaseChunk.id}: ${error instanceof Error ? error.message : String(error)}`
           );
         }
       }
     }
 
-    return memoryIds;
+    return chunkIds;
   }
 
-  private async removeMemories(memoryIds: string[]): Promise<void> {
+  private async removeChunks(chunkIds: string[]): Promise<void> {
     await Promise.all(
-      memoryIds.map(async (id) => {
+      chunkIds.map(async (id) => {
         try {
-          await this.options.memoryRepository.delete(id);
+          await this.options.codebaseChunkRepository.delete(id);
         } catch (error) {
-          console.warn(`Failed to delete memory ${id}: ${error instanceof Error ? error.message : String(error)}`);
+          console.warn(`Failed to delete chunk ${id}: ${error instanceof Error ? error.message : String(error)}`);
         }
         try {
           await this.options.vectorIndex.remove(id);

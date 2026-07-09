@@ -4,9 +4,13 @@ import { tmpdir } from 'node:os';
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { CodebaseIndexer } from './codebase_indexer.js';
 import { FileCodebaseScanner } from './file_codebase_scanner.js';
-import { LineCodeChunker } from './line_code_chunker.js';
+import { ParserRegistryImpl } from './parser_registry_impl.js';
+import { TypeScriptParser } from './typescript_parser.js';
+import { SmartFallbackChunker } from './smart_fallback_chunker.js';
+import { SemanticChunkBuilderImpl } from './semantic_chunk_builder_impl.js';
+import { ParsingPipeline } from './parsing_pipeline.js';
 import { FileCodebaseIndexRepository } from './file_codebase_index_repository.js';
-import { FileMemoryRepository } from './file_memory_repository.js';
+import { FileCodebaseChunkRepository } from './file_codebase_chunk_repository.js';
 import { SqliteVectorIndex } from './sqlite_vector_index.js';
 
 class FakeEmbeddingProvider {
@@ -23,20 +27,28 @@ describe('CodebaseIndexer', () => {
   let projectRoot: string;
   let vaultPath: string;
   let indexer: CodebaseIndexer;
+  let codebaseChunkRepository: FileCodebaseChunkRepository;
 
   beforeEach(async () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'db-proj-'));
     vaultPath = await mkdtemp(join(tmpdir(), 'db-vault-'));
 
-    const memoryRepository = new FileMemoryRepository({ basePath: vaultPath });
+    codebaseChunkRepository = new FileCodebaseChunkRepository({ basePath: vaultPath });
     const vectorIndex = new SqliteVectorIndex({ dbPath: join(vaultPath, 'index', 'embeddings.sqlite') });
     const indexRepository = new FileCodebaseIndexRepository({ basePath: vaultPath });
 
+    const registry = new ParserRegistryImpl();
+    registry.register('typescript', new TypeScriptParser());
+
     indexer = new CodebaseIndexer({
       scanner: new FileCodebaseScanner(),
-      chunker: new LineCodeChunker(),
+      pipeline: new ParsingPipeline({
+        registry,
+        fallbackChunker: new SmartFallbackChunker(),
+        semanticChunkBuilder: new SemanticChunkBuilderImpl(),
+      }),
       indexRepository,
-      memoryRepository,
+      codebaseChunkRepository,
       vectorIndex,
       embeddingProvider: new FakeEmbeddingProvider(),
     });
@@ -88,7 +100,7 @@ describe('CodebaseIndexer', () => {
     expect(result.unchanged).toHaveLength(0);
   });
 
-  it('detects removed files and deletes their memories', async () => {
+  it('detects removed files and deletes their chunks', async () => {
     await writeProjectFile('src/foo.ts', 'line1\nline2\nline3');
     await writeProjectFile('src/bar.ts', 'line1\nline2');
     await indexer.index('my-project', projectRoot);
@@ -119,5 +131,47 @@ describe('CodebaseIndexer', () => {
 
     expect(result.updated).toHaveLength(1);
     expect(result.unchanged).toHaveLength(0);
+  });
+
+  it('saves chunks to the codebase chunk repository', async () => {
+    await writeProjectFile('src/foo.ts', 'export function add(a: number, b: number): number {\n  return a + b;\n}');
+    await indexer.index('my-project', projectRoot);
+
+    const chunks = await codebaseChunkRepository.list({ projectId: 'my-project' });
+    expect(chunks.length).toBeGreaterThan(0);
+    expect(chunks[0]?.projectId).toBe('my-project');
+    expect(chunks[0]?.source).toBe('codebase-indexer');
+  });
+
+  it('treats a legacy manifest with memoryIds as a full reindex', async () => {
+    await writeProjectFile('src/foo.ts', 'export function add(a: number, b: number): number {\n  return a + b;\n}');
+
+    const legacyManifest = {
+      projectId: 'my-project',
+      rootPath: projectRoot,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      files: {
+        'src/foo.ts': {
+          relativePath: 'src/foo.ts',
+          contentHash: 'oldhash',
+          indexedAt: new Date().toISOString(),
+          memoryIds: ['chunk_legacy'],
+        },
+      },
+    };
+
+    const indexRepository = new FileCodebaseIndexRepository({ basePath: vaultPath });
+    await indexRepository.save(legacyManifest as unknown as import('../application/ports/codebase_index_repository.js').CodebaseIndexManifest);
+
+    const result = await indexer.index('my-project', projectRoot);
+
+    expect(result.added).toHaveLength(1);
+    expect(result.updated).toHaveLength(0);
+    expect(result.unchanged).toHaveLength(0);
+
+    const loaded = await indexRepository.load('my-project');
+    expect(loaded?.files['src/foo.ts']?.chunkIds.length).toBeGreaterThan(0);
+    expect('memoryIds' in (loaded?.files['src/foo.ts'] ?? {})).toBe(false);
   });
 });

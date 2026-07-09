@@ -47,12 +47,12 @@ export function createEmptyManifest(projectId, rootPath) {
         files: {},
     };
 }
-export function createFileIndexEntry(relativePath, contentHash, memoryIds) {
+export function createFileIndexEntry(relativePath, contentHash, chunkIds) {
     return {
         relativePath,
         contentHash,
         indexedAt: new Date().toISOString(),
-        memoryIds,
+        chunkIds,
     };
 }
 //# sourceMappingURL=file_codebase_index_repository.js.map

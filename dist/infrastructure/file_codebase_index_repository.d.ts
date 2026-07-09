@@ -12,5 +12,5 @@ export declare class FileCodebaseIndexRepository implements CodebaseIndexReposit
     private isNotFoundError;
 }
 export declare function createEmptyManifest(projectId: string, rootPath: string): CodebaseIndexManifest;
-export declare function createFileIndexEntry(relativePath: string, contentHash: string, memoryIds: string[]): FileIndexEntry;
+export declare function createFileIndexEntry(relativePath: string, contentHash: string, chunkIds: string[]): FileIndexEntry;
 //# sourceMappingURL=file_codebase_index_repository.d.ts.map

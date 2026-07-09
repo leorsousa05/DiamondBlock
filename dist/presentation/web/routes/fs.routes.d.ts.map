@@ -1,0 +1,1 @@
+{"version":3,"file":"fs.routes.d.ts","sourceRoot":"","sources":["../../../../src/presentation/web/routes/fs.routes.ts"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,kBAAkB,EAAE,MAAM,SAAS,CAAC;AAElD,MAAM,WAAW,sBAAsB;IACrC,WAAW,EAAE,MAAM,CAAC;IACpB,UAAU,EAAE,MAAM,GAAG,IAAI,CAAC;IAC1B,WAAW,EAAE,MAAM,EAAE,CAAC;IACtB,KAAK,EAAE,MAAM,EAAE,CAAC;CACjB;AAED,eAAO,MAAM,QAAQ,EAAE,kBA2CtB,CAAC"}

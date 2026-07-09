@@ -3,6 +3,7 @@ export declare abstract class JsonFileMcpInstaller implements McpInstaller {
     abstract readonly agent: string;
     protected abstract configPath(): string;
     protected abstract serverKey(): string;
+    getConfigPath(): string;
     protected detectedCommands(): string[];
     isDetected(): Promise<boolean>;
     private configDirExists;

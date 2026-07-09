@@ -81,6 +81,22 @@ describe('SqliteVectorIndex', () => {
     expect(results.map((r) => r.id)).toEqual(['mem_project']);
   });
 
+  it('indexes generic VectorIndexable items such as code chunks', async () => {
+    const chunk = {
+      id: 'chunk_001',
+      type: 'code',
+      scope: 'project/my-app',
+      title: 'Code chunk',
+      content: 'export function add() {}',
+      source: 'codebase-indexer',
+    };
+
+    await index.index(chunk, vectorWith(1, 2));
+    const results = await index.search(vectorWith(1, 2), 10, { scope: 'project/my-app' });
+
+    expect(results.map((r) => r.id)).toEqual(['chunk_001']);
+  });
+
   it('normalizes the scope option before filtering', async () => {
     await index.index(makeMemory('mem_project', 'project/my-app', 'project'), vectorWith(1, 0));
 

@@ -33,7 +33,7 @@ export class SqliteVectorIndex {
       );
     `);
     }
-    async index(memory, embedding) {
+    async index(item, embedding) {
         await mkdir(dirname(this.dbPath), { recursive: true });
         const db = this.getDb();
         const insertMemory = db.prepare(`
@@ -52,19 +52,19 @@ export class SqliteVectorIndex {
     `);
         const vectorJson = JSON.stringify(embedding);
         const transaction = db.transaction(() => {
-            insertMemory.run(memory.id, memory.type, memory.scope, memory.title, memory.source);
-            const existing = db.prepare('SELECT 1 FROM vec_memories WHERE memory_id = ?').get(memory.id);
+            insertMemory.run(item.id, item.type, item.scope, item.title, item.source);
+            const existing = db.prepare('SELECT 1 FROM vec_memories WHERE memory_id = ?').get(item.id);
             if (existing) {
                 try {
-                    updateVec.run(vectorJson, memory.id);
+                    updateVec.run(vectorJson, item.id);
                 }
                 catch {
-                    deleteVec.run(memory.id);
-                    insertVec.run(memory.id, vectorJson);
+                    deleteVec.run(item.id);
+                    insertVec.run(item.id, vectorJson);
                 }
             }
             else {
-                insertVec.run(memory.id, vectorJson);
+                insertVec.run(item.id, vectorJson);
             }
         });
         transaction();

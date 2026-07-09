@@ -2,7 +2,7 @@ export interface FileIndexEntry {
     relativePath: string;
     contentHash: string;
     indexedAt: string;
-    memoryIds: string[];
+    chunkIds: string[];
 }
 export interface CodebaseIndexManifest {
     projectId: string;

@@ -57,6 +57,29 @@ describe('codeChunkToMemory', () => {
     expect(memory.title).toContain('file: src/services/auth.ts');
   });
 
+  it('uses metadata confidence when available', () => {
+    const chunk = createCodeChunk({
+      filePath: 'src/services/auth.ts',
+      startLine: 5,
+      endLine: 15,
+      language: 'typescript',
+      content: '// file: src/services/auth.ts lines 5-15\nexport function login() {}',
+      metadata: {
+        parsingMode: 'ast',
+        confidence: 0.75,
+        supportsGraph: true,
+        supportsSymbols: true,
+        language: 'typescript',
+        imports: [],
+        symbolIds: [],
+      },
+    });
+
+    const memory = codeChunkToMemory(chunk, 'my-project');
+
+    expect(memory.confidence).toBe(0.75);
+  });
+
   it('uses first line as title', () => {
     const chunk = createCodeChunk({
       filePath: 'src/foo.ts',

@@ -20,10 +20,19 @@ function fakeScanner(files: SourceFile[]) {
   };
 }
 
-function fakeChunker() {
+function fakeParsingPipeline() {
   return {
-    async chunk() {
-      return [];
+    async process() {
+      return {
+        language: 'typescript',
+        parsingMode: 'ast' as const,
+        confidence: 0.95,
+        supportsGraph: true,
+        supportsSymbols: true,
+        symbols: [],
+        relations: [],
+        chunks: [],
+      };
     },
   };
 }
@@ -35,6 +44,22 @@ function fakeIndexRepository() {
     },
     async save() {},
     async delete() {},
+  };
+}
+
+function fakeCodebaseChunkRepository() {
+  return {
+    async save() {},
+    async findById() {
+      return null;
+    },
+    async delete() {},
+    async list() {
+      return [];
+    },
+    async purge() {
+      return 0;
+    },
   };
 }
 
@@ -86,8 +111,9 @@ describe('IndexCodebaseUseCase', () => {
     const useCase = new IndexCodebaseUseCase(
       fakeProjectResolver('my-project'),
       fakeScanner([{ absolutePath: '/tmp/a.ts', relativePath: 'a.ts' }]),
-      fakeChunker(),
+      fakeParsingPipeline(),
       fakeIndexRepository(),
+      fakeCodebaseChunkRepository(),
       fakeMemoryRepository(),
       fakeVectorIndex(),
       fakeEmbeddingProvider(),
@@ -119,8 +145,9 @@ describe('IndexCodebaseUseCase', () => {
     const useCase = new IndexCodebaseUseCase(
       fakeProjectResolver('ignored'),
       fakeScanner([]),
-      fakeChunker(),
+      fakeParsingPipeline(),
       fakeIndexRepository(),
+      fakeCodebaseChunkRepository(),
       fakeMemoryRepository(),
       fakeVectorIndex(),
       fakeEmbeddingProvider(),
@@ -144,7 +171,7 @@ describe('IndexCodebaseUseCase', () => {
         },
       },
       fakeScanner([]),
-      fakeChunker(),
+      fakeParsingPipeline(),
       fakeIndexRepository(),
       fakeMemoryRepository(),
       fakeVectorIndex(),

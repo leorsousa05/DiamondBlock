@@ -1,15 +1,15 @@
 import type { CodebaseScanner } from '../application/ports/codebase_scanner.js';
-import type { CodeChunker } from '../application/ports/code_chunker.js';
+import type { ParsingPipeline } from './parsing_pipeline.js';
 import type { CodebaseIndexRepository } from '../application/ports/codebase_index_repository.js';
-import type { MemoryRepository } from '../application/ports/memory_repository.js';
+import type { CodebaseChunkRepository } from '../application/ports/codebase_chunk_repository.js';
 import type { VectorIndex } from '../application/ports/vector_index.js';
 import type { EmbeddingProvider } from '../application/ports/embedding_provider.js';
 import type { SourceFile } from '../application/ports/codebase_scanner.js';
 export interface CodebaseIndexerOptions {
     scanner: CodebaseScanner;
-    chunker: CodeChunker;
+    pipeline: ParsingPipeline;
     indexRepository: CodebaseIndexRepository;
-    memoryRepository: MemoryRepository;
+    codebaseChunkRepository: CodebaseChunkRepository;
     vectorIndex: VectorIndex;
     embeddingProvider: EmbeddingProvider;
 }
@@ -37,8 +37,9 @@ export declare class CodebaseIndexer {
         dryRun?: boolean;
         progress?: CodebaseIndexerProgress;
     }): Promise<CodebaseIndexerResult>;
+    private hasLegacyMemoryIds;
     private computeHashes;
     private indexFile;
-    private removeMemories;
+    private removeChunks;
 }
 //# sourceMappingURL=codebase_indexer.d.ts.map

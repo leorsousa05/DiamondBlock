@@ -1,0 +1,27 @@
+---
+id: '008'
+slug: separate-codebase-index
+status: completed
+title: Separate codebase chunks from memory storage and add index CLI commands
+author: architect
+created_at: '2026-07-08'
+updated_at: '2026-07-08'
+type: feat
+scope:
+  - src/application/ports/codebase_chunk_repository.ts
+  - src/infrastructure/file_codebase_chunk_repository.ts
+  - src/infrastructure/file_codebase_chunk_repository.test.ts
+  - src/application/ports/vector_index.ts
+  - src/infrastructure/sqlite_vector_index.ts
+  - src/infrastructure/sqlite_vector_index.test.ts
+  - src/application/ports/codebase_index_repository.ts
+  - src/infrastructure/file_codebase_index_repository.ts
+  - src/infrastructure/codebase_indexer.ts
+  - src/infrastructure/codebase_indexer.test.ts
+  - src/application/use_cases/index_codebase.ts
+  - src/application/use_cases/index_codebase.test.ts
+  - src/domain/services/orphaned_chunk_cleaner.ts
+  - src/domain/services/orphaned_chunk_cleaner.test.ts
+  - src/presentation/cli/index.ts
+  - src/container_factory.ts
+  - specs/living/diamondblock-core.md

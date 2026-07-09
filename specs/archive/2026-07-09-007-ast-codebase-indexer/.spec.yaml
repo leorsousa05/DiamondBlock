@@ -1,0 +1,25 @@
+---
+id: '007'
+slug: ast-codebase-indexer
+status: completed
+title: Add generic semantic parsing engine with AST chunking for TypeScript/JavaScript
+author: architect
+created_at: '2026-07-08'
+updated_at: '2026-07-08'
+type: feat
+scope:
+  - src/application/ports/code_parser.ts
+  - src/application/ports/parser_registry.ts
+  - src/application/ports/semantic_chunk_builder.ts
+  - src/infrastructure/typescript_parser.ts
+  - src/infrastructure/typescript_parser.test.ts
+  - src/infrastructure/smart_fallback_chunker.ts
+  - src/infrastructure/smart_fallback_chunker.test.ts
+  - src/infrastructure/parsing_pipeline.ts
+  - src/infrastructure/parsing_pipeline.test.ts
+  - src/infrastructure/codebase_indexer.ts
+  - src/infrastructure/codebase_indexer.test.ts
+  - src/infrastructure/line_code_chunker.ts
+  - src/domain/code_chunk.ts
+  - src/container_factory.ts
+  - specs/living/diamondblock-core.md

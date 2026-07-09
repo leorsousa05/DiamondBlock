@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { startWebServer } from '../web/server.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
@@ -13,6 +14,7 @@ import { createInterface } from 'node:readline';
 import { setContainer } from '../../container.js';
 import { initializeVault, defaultVaultPath } from '../../infrastructure/vault_initializer.js';
 import { FileMemoryRepository } from '../../infrastructure/file_memory_repository.js';
+import { FileCodebaseChunkRepository } from '../../infrastructure/file_codebase_chunk_repository.js';
 import { FileSessionRepository } from '../../infrastructure/file_session_repository.js';
 import { SqliteVectorIndex } from '../../infrastructure/sqlite_vector_index.js';
 import { createDefaultContainer } from '../../container_factory.js';
@@ -236,6 +238,58 @@ memoryCmd
     console.log(chalk.green(`Memory updated: ${id}`));
 });
 memoryCmd
+    .command('purge')
+    .description('Delete all memories in a scope')
+    .option('--scope <scope>')
+    .option('--project <projectId>', 'project id (alias for --scope project/<id>; auto-detected when omitted)')
+    .option('--source <source>', 'only delete memories with this source (e.g. codebase-indexer)')
+    .option('--yes', 'skip confirmation')
+    .action(async (options) => {
+    const { basePath, vectorIndex, projectResolver } = await loadContainer();
+    let scope;
+    if (options.scope) {
+        scope = options.scope;
+    }
+    else {
+        const project = options.project
+            ? await resolveProject(projectResolver, options.project)
+            : await resolveProject(projectResolver);
+        console.log(chalk.gray(`Detected project: ${project.projectId} (${project.source})`));
+        scope = `project/${project.projectId}`;
+    }
+    const repo = new FileMemoryRepository({ basePath });
+    const memories = await repo.list({ scope, limit: 100000 });
+    const filtered = options.source
+        ? memories.filter((m) => m.source === options.source)
+        : memories;
+    if (filtered.length === 0) {
+        console.log(chalk.yellow(`No memories found in scope ${scope}.`));
+        return;
+    }
+    if (!options.yes) {
+        const confirmed = await confirm(`Delete ${filtered.length} memories in scope ${scope}?`);
+        if (!confirmed) {
+            console.log(chalk.yellow('Purge cancelled.'));
+            return;
+        }
+    }
+    for (const memory of filtered) {
+        try {
+            await repo.delete(memory.id);
+        }
+        catch {
+            // ignore
+        }
+        try {
+            await vectorIndex.remove(memory.id);
+        }
+        catch {
+            // ignore
+        }
+    }
+    console.log(chalk.green(`Purged ${filtered.length} memories in scope ${scope}.`));
+});
+memoryCmd
     .command('delete <id>')
     .description('Delete a memory')
     .option('--yes', 'skip confirmation')
@@ -344,47 +398,24 @@ program
     console.log(`Memories:        ${chalk.cyan(memories.length)}`);
     console.log(`Sessions:        ${chalk.cyan(sessions.length)}`);
 });
-program
-    .command('index [path]')
-    .description('Index a codebase into the vault for semantic code search')
-    .option('--project <projectId>', 'project id (auto-detected when omitted)')
-    .option('--force', 'reindex all files regardless of content hash')
-    .option('--dry-run', 'show what would be indexed without saving')
-    .option('--status', 'show current index status for the project')
-    .action(async (projectPath, options) => {
+const indexCmd = program.command('index').description('Codebase index operations');
+async function resolveIndexProject(projectResolver, explicitProject) {
+    return explicitProject
+        ? await resolveProject(projectResolver, explicitProject)
+        : await resolveProject(projectResolver);
+}
+async function runIndex(projectPath, options) {
     const container = await loadContainer();
-    const basePath = container.basePath;
-    const projectId = options.project
-        ? Scope.normalizeProjectId(options.project)
-        : undefined;
-    if (options.status) {
-        const repo = container.codebaseIndexRepository;
-        if (!repo) {
-            console.log(chalk.red('Codebase indexer is not available.'));
-            process.exit(1);
-        }
-        const resolvedProjectId = projectId ?? (await resolveProject(container.projectResolver, projectPath)).projectId;
-        const manifest = await repo.load(resolvedProjectId);
-        if (!manifest) {
-            console.log(chalk.yellow(`No index found for project ${resolvedProjectId}.`));
-            return;
-        }
-        const fileCount = Object.keys(manifest.files).length;
-        console.log(chalk.bold('Codebase Index Status'));
-        console.log();
-        console.log(`Project:     ${chalk.cyan(manifest.projectId)}`);
-        console.log(`Root path:   ${chalk.cyan(manifest.rootPath)}`);
-        console.log(`Files:       ${chalk.cyan(fileCount)}`);
-        console.log(`Created:     ${chalk.cyan(manifest.createdAt)}`);
-        console.log(`Updated:     ${chalk.cyan(manifest.updatedAt)}`);
-        return;
-    }
+    const projectId = options.project ? Scope.normalizeProjectId(options.project) : undefined;
     const spinner = ora('Preparing to index').start();
     try {
-        if (!container.codebaseScanner || !container.codeChunker || !container.codebaseIndexRepository) {
+        if (!container.codebaseScanner ||
+            !container.parsingPipeline ||
+            !container.codebaseIndexRepository ||
+            !container.codebaseChunkRepository) {
             throw new Error('Codebase indexer dependencies are not available');
         }
-        const useCase = new IndexCodebaseUseCase(container.projectResolver, container.codebaseScanner, container.codeChunker, container.codebaseIndexRepository, container.memoryRepository, container.vectorIndex, container.embeddingProvider);
+        const useCase = new IndexCodebaseUseCase(container.projectResolver, container.codebaseScanner, container.parsingPipeline, container.codebaseIndexRepository, container.codebaseChunkRepository, container.memoryRepository, container.vectorIndex, container.embeddingProvider);
         let currentFile = 0;
         let totalFiles = 0;
         const result = await useCase.execute({
@@ -437,6 +468,206 @@ program
         spinner.fail(`Indexing failed: ${error instanceof Error ? error.message : error}`);
         process.exit(1);
     }
+}
+async function showIndexStatus(options) {
+    const container = await loadContainer();
+    const repo = container.codebaseIndexRepository;
+    if (!repo) {
+        console.log(chalk.red('Codebase indexer is not available.'));
+        process.exit(1);
+    }
+    const project = await resolveIndexProject(container.projectResolver, options.project);
+    console.log(chalk.gray(`Detected project: ${project.projectId} (${project.source})`));
+    const manifest = await repo.load(project.projectId);
+    if (!manifest) {
+        console.log(chalk.yellow(`No index found for project ${project.projectId}.`));
+        return;
+    }
+    const fileCount = Object.keys(manifest.files).length;
+    console.log(chalk.bold('Codebase Index Status'));
+    console.log();
+    console.log(`Project:     ${chalk.cyan(manifest.projectId)}`);
+    console.log(`Root path:   ${chalk.cyan(manifest.rootPath)}`);
+    console.log(`Files:       ${chalk.cyan(fileCount)}`);
+    console.log(`Created:     ${chalk.cyan(manifest.createdAt)}`);
+    console.log(`Updated:     ${chalk.cyan(manifest.updatedAt)}`);
+}
+async function purgeIndex(options) {
+    const container = await loadContainer();
+    if (!container.codebaseIndexRepository || !container.codebaseChunkRepository || !container.vectorIndex) {
+        console.log(chalk.red('Codebase indexer dependencies are not available.'));
+        process.exit(1);
+    }
+    const project = await resolveIndexProject(container.projectResolver, options.project);
+    console.log(chalk.gray(`Detected project: ${project.projectId} (${project.source})`));
+    const manifest = await container.codebaseIndexRepository.load(project.projectId);
+    let removedChunks = 0;
+    if (manifest) {
+        if (!options.yes) {
+            const total = Object.values(manifest.files).reduce((sum, entry) => sum + entry.chunkIds.length, 0);
+            const confirmed = await confirm(`Delete codebase index for ${project.projectId} (${total} chunks)?`);
+            if (!confirmed) {
+                console.log(chalk.yellow('Purge cancelled.'));
+                return;
+            }
+        }
+        for (const entry of Object.values(manifest.files)) {
+            for (const chunkId of entry.chunkIds) {
+                try {
+                    await container.vectorIndex.remove(chunkId);
+                }
+                catch {
+                    // ignore
+                }
+                removedChunks++;
+            }
+        }
+        await container.codebaseIndexRepository.delete(project.projectId);
+    }
+    removedChunks += await container.codebaseChunkRepository.purge(project.projectId);
+    console.log(chalk.bold('Codebase index purged'));
+    console.log();
+    console.log(`Project:         ${chalk.cyan(project.projectId)}`);
+    console.log(`Chunks removed:  ${chalk.cyan(removedChunks)}`);
+}
+async function cleanIndexOrphans(options) {
+    const container = await loadContainer();
+    if (!container.orphanedChunkCleaner || !container.codebaseIndexRepository) {
+        console.log(chalk.red('Codebase indexer dependencies are not available.'));
+        process.exit(1);
+    }
+    const project = await resolveIndexProject(container.projectResolver, options.project);
+    console.log(chalk.gray(`Detected project: ${project.projectId} (${project.source})`));
+    const result = await container.orphanedChunkCleaner.clean(project.projectId);
+    console.log(chalk.bold('Orphaned chunks cleaned'));
+    console.log();
+    console.log(`Project:         ${chalk.cyan(result.projectId)}`);
+    console.log(`Chunks removed:  ${chalk.cyan(result.chunkIdsRemoved)}`);
+}
+indexCmd
+    .command('run [path]', { isDefault: true })
+    .description('Index a codebase into the vault for semantic code search')
+    .option('--project <projectId>', 'project id (auto-detected when omitted)')
+    .option('--force', 'reindex all files regardless of content hash')
+    .option('--dry-run', 'show what would be indexed without saving')
+    .option('--status', 'show current index status for the project')
+    .option('--clean-orphans', 'remove codebase chunks not referenced by the index manifest')
+    .option('--purge', 'delete the entire codebase index for the project')
+    .option('--yes', 'skip confirmation when using --purge')
+    .action(async (projectPath, options) => {
+    if (options.purge) {
+        await purgeIndex({ project: options.project, yes: options.yes });
+        return;
+    }
+    if (options.cleanOrphans) {
+        await cleanIndexOrphans({ project: options.project });
+        return;
+    }
+    if (options.status) {
+        await showIndexStatus({ project: options.project });
+        return;
+    }
+    await runIndex(projectPath, {
+        project: options.project,
+        force: options.force,
+        dryRun: options.dryRun,
+    });
+});
+indexCmd
+    .command('list')
+    .description('List indexed codebase chunks')
+    .option('--project <projectId>', 'project id (auto-detected when omitted)')
+    .option('--limit <limit>', 'number of chunks', '20')
+    .action(async (options) => {
+    const { basePath, projectResolver } = await loadContainer();
+    const repo = new FileCodebaseChunkRepository({ basePath });
+    const project = await resolveIndexProject(projectResolver, options.project);
+    console.log(chalk.gray(`Detected project: ${project.projectId} (${project.source})`));
+    const chunks = await repo.list({
+        projectId: project.projectId,
+        limit: parseInt(options.limit, 10),
+    });
+    if (chunks.length === 0) {
+        console.log(chalk.yellow(`No indexed chunks found for project ${project.projectId}.`));
+        return;
+    }
+    const table = new Table({
+        head: [chalk.bold('ID'), chalk.bold('File'), chalk.bold('Lines'), chalk.bold('Language')],
+        colWidths: [24, 40, 16, 16],
+    });
+    for (const chunk of chunks) {
+        table.push([
+            chunk.id,
+            chunk.filePath,
+            `${chunk.startLine}-${chunk.endLine}`,
+            chunk.language,
+        ]);
+    }
+    console.log(table.toString());
+});
+indexCmd
+    .command('search <query>')
+    .description('Search indexed codebase chunks by semantic meaning')
+    .option('--project <projectId>', 'project id (auto-detected when omitted)')
+    .option('--limit <limit>', 'number of results', '5')
+    .action(async (query, options) => {
+    const { basePath, embeddingProvider, projectResolver } = await loadContainer();
+    const repo = new FileCodebaseChunkRepository({ basePath });
+    const vectorIndex = new SqliteVectorIndex({ dbPath: join(basePath, 'index', 'embeddings.sqlite') });
+    const project = await resolveIndexProject(projectResolver, options.project);
+    console.log(chalk.gray(`Detected project: ${project.projectId} (${project.source})`));
+    const spinner = ora('Searching codebase').start();
+    try {
+        const embedding = await embeddingProvider.embed(query);
+        const results = await vectorIndex.search(embedding, parseInt(options.limit, 10), {
+            scope: `project/${project.projectId}`,
+        });
+        spinner.stop();
+        if (results.length === 0) {
+            console.log(chalk.yellow('No chunks found.'));
+            return;
+        }
+        const table = new Table({
+            head: [chalk.bold('Score'), chalk.bold('ID'), chalk.bold('File'), chalk.bold('Lines')],
+            colWidths: [10, 24, 40, 16],
+        });
+        for (const result of results) {
+            const chunk = await repo.findById(result.id);
+            table.push([
+                result.score.toFixed(3),
+                result.id,
+                chunk?.filePath ?? 'unknown',
+                chunk ? `${chunk.startLine}-${chunk.endLine}` : '-',
+            ]);
+        }
+        console.log(table.toString());
+    }
+    catch (error) {
+        spinner.fail(`Search failed: ${error instanceof Error ? error.message : error}`);
+        process.exit(1);
+    }
+});
+indexCmd
+    .command('status')
+    .description('Show current index status for the project')
+    .option('--project <projectId>', 'project id (auto-detected when omitted)')
+    .action(async (options) => {
+    await showIndexStatus({ project: options.project });
+});
+indexCmd
+    .command('purge')
+    .description('Delete the entire codebase index for the project')
+    .option('--project <projectId>', 'project id (auto-detected when omitted)')
+    .option('--yes', 'skip confirmation')
+    .action(async (options) => {
+    await purgeIndex({ project: options.project, yes: options.yes });
+});
+indexCmd
+    .command('clean-orphans')
+    .description('Remove codebase chunks not referenced by the index manifest')
+    .option('--project <projectId>', 'project id (auto-detected when omitted)')
+    .action(async (options) => {
+    await cleanIndexOrphans({ project: options.project });
 });
 async function openEditor(content) {
     const editor = process.env.EDITOR ?? 'nano';
@@ -476,5 +707,20 @@ function confirm(question) {
         });
     });
 }
+program
+    .command('web')
+    .description('Start the DiamondBlock web UI')
+    .option('--port <port>', 'HTTP port to listen on', '3847')
+    .option('--no-open', 'do not open browser automatically')
+    .action(async (options) => {
+    const container = await loadContainer();
+    const staticDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'web');
+    await startWebServer(container, {
+        port: parseInt(options.port, 10),
+        host: '127.0.0.1',
+        staticDir,
+        open: options.open,
+    });
+});
 program.parse();
 //# sourceMappingURL=index.js.map

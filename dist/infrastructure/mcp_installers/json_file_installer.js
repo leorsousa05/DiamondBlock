@@ -14,6 +14,9 @@ function commandExists(command) {
     });
 }
 export class JsonFileMcpInstaller {
+    getConfigPath() {
+        return this.configPath();
+    }
     detectedCommands() {
         return [];
     }

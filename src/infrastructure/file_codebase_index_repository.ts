@@ -66,12 +66,12 @@ export function createEmptyManifest(projectId: string, rootPath: string): Codeba
 export function createFileIndexEntry(
   relativePath: string,
   contentHash: string,
-  memoryIds: string[]
+  chunkIds: string[]
 ): FileIndexEntry {
   return {
     relativePath,
     contentHash,
     indexedAt: new Date().toISOString(),
-    memoryIds,
+    chunkIds,
   };
 }

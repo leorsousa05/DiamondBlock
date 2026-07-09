@@ -1,4 +1,6 @@
 import type { MemoryInput } from './memory.js';
+import type { ChunkMetadata } from '../application/ports/code_parser.js';
+import type { CodebaseChunkInput } from '../application/ports/codebase_chunk_repository.js';
 
 export interface CodeChunk {
   id: string;
@@ -7,6 +9,7 @@ export interface CodeChunk {
   endLine: number;
   language: string;
   content: string;
+  metadata?: ChunkMetadata;
 }
 
 export interface CodeChunkInput {
@@ -15,6 +18,7 @@ export interface CodeChunkInput {
   endLine: number;
   language: string;
   content: string;
+  metadata?: ChunkMetadata;
 }
 
 function generateChunkId(filePath: string, startLine: number): string {
@@ -37,6 +41,7 @@ export function createCodeChunk(input: CodeChunkInput): CodeChunk {
     endLine: input.endLine,
     language: input.language,
     content: input.content,
+    metadata: input.metadata,
   };
 }
 
@@ -51,10 +56,33 @@ export function codeChunkToMemory(chunk: CodeChunk, projectId: string): MemoryIn
     content: chunk.content,
     source: 'codebase-indexer',
     tags: ['code', 'chunk', chunk.language || 'unknown'],
-    confidence: 1.0,
+    confidence: chunk.metadata?.confidence ?? 1.0,
   };
 }
 
 export function memoryToCodeChunkTitle(chunk: CodeChunk): string {
   return `// file: ${chunk.filePath} lines ${chunk.startLine}-${chunk.endLine}`;
+}
+
+export function createCodebaseChunkFromCodeChunk(
+  chunk: CodeChunk,
+  projectId: string
+): CodebaseChunkInput {
+  const lines = chunk.content.split('\n');
+  const title = lines[0]?.trim() ?? `Code chunk from ${chunk.filePath}`;
+
+  return {
+    id: chunk.id,
+    projectId,
+    filePath: chunk.filePath,
+    startLine: chunk.startLine,
+    endLine: chunk.endLine,
+    language: chunk.language,
+    content: chunk.content,
+    title,
+    source: 'codebase-indexer',
+    tags: ['code', 'chunk', chunk.language || 'unknown'],
+    confidence: chunk.metadata?.confidence ?? 1.0,
+    metadata: chunk.metadata,
+  };
 }

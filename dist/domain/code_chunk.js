@@ -17,6 +17,7 @@ export function createCodeChunk(input) {
         endLine: input.endLine,
         language: input.language,
         content: input.content,
+        metadata: input.metadata,
     };
 }
 export function codeChunkToMemory(chunk, projectId) {
@@ -29,10 +30,28 @@ export function codeChunkToMemory(chunk, projectId) {
         content: chunk.content,
         source: 'codebase-indexer',
         tags: ['code', 'chunk', chunk.language || 'unknown'],
-        confidence: 1.0,
+        confidence: chunk.metadata?.confidence ?? 1.0,
     };
 }
 export function memoryToCodeChunkTitle(chunk) {
     return `// file: ${chunk.filePath} lines ${chunk.startLine}-${chunk.endLine}`;
+}
+export function createCodebaseChunkFromCodeChunk(chunk, projectId) {
+    const lines = chunk.content.split('\n');
+    const title = lines[0]?.trim() ?? `Code chunk from ${chunk.filePath}`;
+    return {
+        id: chunk.id,
+        projectId,
+        filePath: chunk.filePath,
+        startLine: chunk.startLine,
+        endLine: chunk.endLine,
+        language: chunk.language,
+        content: chunk.content,
+        title,
+        source: 'codebase-indexer',
+        tags: ['code', 'chunk', chunk.language || 'unknown'],
+        confidence: chunk.metadata?.confidence ?? 1.0,
+        metadata: chunk.metadata,
+    };
 }
 //# sourceMappingURL=code_chunk.js.map

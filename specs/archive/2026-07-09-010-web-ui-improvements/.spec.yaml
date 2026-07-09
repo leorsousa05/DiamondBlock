@@ -1,0 +1,24 @@
+id: "010-web-ui-improvements"
+title: "Web UI Improvements & Semantic Search fixes"
+status: "completed"
+type: "feature"
+priority: "P1"
+author: "architect"
+created_at: "2026-07-08"
+updated_at: "2026-07-09"
+scope:
+  - src/presentation/web/routes/memory.routes.ts
+  - src/presentation/web/routes/mcp_install.routes.ts
+  - src/presentation/web/routes/fs.routes.ts
+  - src/presentation/web/server.ts
+  - src/infrastructure/mcp_installers/json_file_installer.ts
+  - web/package.json
+  - web/src/App.tsx
+  - web/src/index.css
+  - web/src/api/client.ts
+  - web/src/components/Sidebar.tsx
+  - web/src/pages/StatusPage.tsx
+  - web/src/pages/McpInstallPage.tsx
+  - web/src/pages/IndexPage.tsx
+subagents:
+  approved: false

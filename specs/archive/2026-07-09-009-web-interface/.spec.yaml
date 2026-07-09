@@ -1,0 +1,25 @@
+id: "009-web-interface"
+title: "Web UI — dblock web command"
+status: "completed"
+type: "feature"
+priority: "P1"
+author: "architect"
+created_at: "2026-07-08"
+updated_at: "2026-07-09"
+scope:
+  - src/presentation/web/
+  - web/
+  - src/presentation/cli/index.ts
+  - package.json
+  - tsconfig.json
+subagents:
+  approved: true
+  components:
+    - name: "backend-web-server"
+      scope: "Fastify HTTP server + REST API routes + SSE streaming — src/presentation/web/"
+      files: "src/presentation/web/server.ts, src/presentation/web/routes/*.ts, src/presentation/web/sse_manager.ts"
+      constraints: "Do NOT touch web/ frontend, MCP server, or domain/application layers beyond creating use case instances"
+    - name: "frontend-spa"
+      scope: "React + Vite SPA with all UI pages — web/"
+      files: "web/src/**/*.tsx, web/src/**/*.css, web/index.html, web/package.json, web/vite.config.ts"
+      constraints: "Do NOT touch src/ backend code; consume only the REST API defined in design.md"

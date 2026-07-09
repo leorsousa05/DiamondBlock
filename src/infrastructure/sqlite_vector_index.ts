@@ -2,8 +2,8 @@ import Database from 'better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { Memory } from '../domain/memory.js';
 import type { SearchResult, VectorIndex, VectorSearchOptions } from '../application/ports/vector_index.js';
+import type { VectorIndexable } from '../application/ports/vector_index.js';
 import { Scope } from '../domain/scope.js';
 
 export interface SqliteVectorIndexOptions {
@@ -44,7 +44,7 @@ export class SqliteVectorIndex implements VectorIndex {
     `);
   }
 
-  async index(memory: Memory, embedding: number[]): Promise<void> {
+  async index(item: VectorIndexable, embedding: number[]): Promise<void> {
     await mkdir(dirname(this.dbPath), { recursive: true });
     const db = this.getDb();
 
@@ -69,18 +69,18 @@ export class SqliteVectorIndex implements VectorIndex {
     const vectorJson = JSON.stringify(embedding);
 
     const transaction = db.transaction(() => {
-      insertMemory.run(memory.id, memory.type, memory.scope, memory.title, memory.source);
+      insertMemory.run(item.id, item.type, item.scope, item.title, item.source);
 
-      const existing = db.prepare('SELECT 1 FROM vec_memories WHERE memory_id = ?').get(memory.id);
+      const existing = db.prepare('SELECT 1 FROM vec_memories WHERE memory_id = ?').get(item.id);
       if (existing) {
         try {
-          updateVec.run(vectorJson, memory.id);
+          updateVec.run(vectorJson, item.id);
         } catch {
-          deleteVec.run(memory.id);
-          insertVec.run(memory.id, vectorJson);
+          deleteVec.run(item.id);
+          insertVec.run(item.id, vectorJson);
         }
       } else {
-        insertVec.run(memory.id, vectorJson);
+        insertVec.run(item.id, vectorJson);
       }
     });
 
