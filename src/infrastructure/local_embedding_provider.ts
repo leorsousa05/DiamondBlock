@@ -22,6 +22,21 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
     return Array.from(output.data) as number[];
   }
 
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    const extractor = await this.getExtractor();
+    const output = await extractor(texts, { pooling: 'mean', normalize: true });
+    const size = output.dims[1];
+    const data = output.data;
+    const result: number[][] = [];
+    for (let i = 0; i < texts.length; i++) {
+      const start = i * size;
+      const end = start + size;
+      result.push(Array.from(data.slice(start, end)) as number[]);
+    }
+    return result;
+  }
+
   private async getExtractor(): Promise<FeatureExtractionPipeline> {
     if (!this.extractor) {
       this.extractor = await pipeline('feature-extraction', this.model);

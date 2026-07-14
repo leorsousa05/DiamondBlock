@@ -36,6 +36,7 @@ class FakeMemoryRepository implements MemoryRepository {
 
 class FakeVectorIndex implements VectorIndex {
   async index(): Promise<void> {}
+  async indexBatch(): Promise<void> {}
   async search(): Promise<Array<{ id: string; score: number }>> {
     return [];
   }
@@ -51,6 +52,10 @@ class FakeEmbeddingProvider implements EmbeddingProvider {
 
   async embed(): Promise<number[]> {
     return [0, 0, 1];
+  }
+
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    return texts.map(() => [0, 0, 1]);
   }
 }
 
@@ -69,6 +74,7 @@ class FakeEnrichmentProvider implements EnrichmentProvider {
 
 class TagInferringVectorIndex implements VectorIndex {
   async index(): Promise<void> {}
+  async indexBatch(): Promise<void> {}
   async search(): Promise<Array<{ id: string; score: number }>> {
     return [{ id: 'similar', score: 0.9 }];
   }

@@ -5,6 +5,7 @@ export declare class LocalEmbeddingProvider implements EmbeddingProvider {
     constructor(model?: string);
     isAvailable(): Promise<boolean>;
     embed(text: string): Promise<number[]>;
+    embedBatch(texts: string[]): Promise<number[][]>;
     private getExtractor;
 }
 //# sourceMappingURL=local_embedding_provider.d.ts.map

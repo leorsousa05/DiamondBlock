@@ -14,6 +14,20 @@ export class FileCodebaseChunkRepository {
         await writeFile(path, JSON.stringify(this.serialize(chunk), null, 2), 'utf-8');
         await this.updateIndexEntry(chunk.id, chunk.projectId);
     }
+    async saveAll(chunks) {
+        if (chunks.length === 0)
+            return;
+        for (const chunk of chunks) {
+            const path = this.idToPath(chunk.id, chunk.projectId);
+            await mkdir(dirname(path), { recursive: true });
+            await writeFile(path, JSON.stringify(this.serialize(chunk), null, 2), 'utf-8');
+        }
+        const index = await this.loadIndex();
+        for (const chunk of chunks) {
+            index[chunk.id] = chunk.projectId;
+        }
+        await this.saveIndex(index);
+    }
     async findById(id) {
         const index = await this.loadIndex();
         const projectId = index[id];

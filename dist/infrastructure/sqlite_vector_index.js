@@ -69,6 +69,47 @@ export class SqliteVectorIndex {
         });
         transaction();
     }
+    async indexBatch(items) {
+        if (items.length === 0)
+            return;
+        await mkdir(dirname(this.dbPath), { recursive: true });
+        const db = this.getDb();
+        const insertMemory = db.prepare(`
+      INSERT OR REPLACE INTO memories (id, type, scope, title, source)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+        const insertVec = db.prepare(`
+      INSERT INTO vec_memories (memory_id, embedding)
+      VALUES (?, ?)
+    `);
+        const updateVec = db.prepare(`
+      UPDATE vec_memories SET embedding = ? WHERE memory_id = ?
+    `);
+        const deleteVec = db.prepare(`
+      DELETE FROM vec_memories WHERE memory_id = ?
+    `);
+        const selectVec = db.prepare('SELECT 1 FROM vec_memories WHERE memory_id = ?');
+        const transaction = db.transaction(() => {
+            for (const { item, embedding } of items) {
+                insertMemory.run(item.id, item.type, item.scope, item.title, item.source);
+                const vectorJson = JSON.stringify(embedding);
+                const existing = selectVec.get(item.id);
+                if (existing) {
+                    try {
+                        updateVec.run(vectorJson, item.id);
+                    }
+                    catch {
+                        deleteVec.run(item.id);
+                        insertVec.run(item.id, vectorJson);
+                    }
+                }
+                else {
+                    insertVec.run(item.id, vectorJson);
+                }
+            }
+        });
+        transaction();
+    }
     async search(embedding, limit, options) {
         const db = this.getDb();
         const vectorJson = JSON.stringify(embedding);

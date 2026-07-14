@@ -9,5 +9,6 @@ export declare class OpenAIEmbeddingProvider implements EmbeddingProvider {
     constructor(options: OpenAIEmbeddingProviderOptions);
     isAvailable(): Promise<boolean>;
     embed(text: string): Promise<number[]>;
+    embedBatch(texts: string[]): Promise<number[][]>;
 }
 //# sourceMappingURL=openai_embedding_provider.d.ts.map

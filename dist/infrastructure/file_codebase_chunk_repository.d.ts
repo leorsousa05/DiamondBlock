@@ -7,6 +7,7 @@ export declare class FileCodebaseChunkRepository implements CodebaseChunkReposit
     private readonly indexPath;
     constructor(options: FileCodebaseChunkRepositoryOptions);
     save(chunk: CodebaseChunk): Promise<void>;
+    saveAll(chunks: CodebaseChunk[]): Promise<void>;
     findById(id: string): Promise<CodebaseChunk | null>;
     delete(id: string): Promise<void>;
     list(options: CodebaseChunkListOptions): Promise<CodebaseChunk[]>;

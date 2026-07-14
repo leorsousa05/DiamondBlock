@@ -15,6 +15,10 @@ export interface VectorIndexable {
 }
 export interface VectorIndex {
     index(item: VectorIndexable, embedding: number[]): Promise<void>;
+    indexBatch(items: Array<{
+        item: VectorIndexable;
+        embedding: number[];
+    }>): Promise<void>;
     search(embedding: number[], limit: number, options?: VectorSearchOptions): Promise<SearchResult[]>;
     remove(id: string): Promise<void>;
     close?(): Promise<void>;

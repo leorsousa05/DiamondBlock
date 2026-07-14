@@ -41,6 +41,7 @@ export interface CodebaseChunkListOptions {
 
 export interface CodebaseChunkRepository {
   save(chunk: CodebaseChunk): Promise<void>;
+  saveAll(chunks: CodebaseChunk[]): Promise<void>;
   findById(id: string): Promise<CodebaseChunk | null>;
   delete(id: string): Promise<void>;
   list(options: CodebaseChunkListOptions): Promise<CodebaseChunk[]>;

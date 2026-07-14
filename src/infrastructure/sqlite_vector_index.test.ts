@@ -104,4 +104,34 @@ describe('SqliteVectorIndex', () => {
 
     expect(results.map((r) => r.id)).toEqual(['mem_project']);
   });
+
+  it('indexes multiple VectorIndexable items in a batch', async () => {
+    const chunk1 = {
+      id: 'chunk_b1',
+      type: 'code',
+      scope: 'project/my-app',
+      title: 'Chunk 1',
+      content: 'content 1',
+      source: 'codebase-indexer',
+    };
+    const chunk2 = {
+      id: 'chunk_b2',
+      type: 'code',
+      scope: 'project/my-app',
+      title: 'Chunk 2',
+      content: 'content 2',
+      source: 'codebase-indexer',
+    };
+
+    await index.indexBatch([
+      { item: chunk1, embedding: vectorWith(1, 0) },
+      { item: chunk2, embedding: vectorWith(0, 1) },
+    ]);
+
+    const results1 = await index.search(vectorWith(1, 0), 10, { scope: 'project/my-app' });
+    expect(results1.map((r) => r.id)).toContain('chunk_b1');
+
+    const results2 = await index.search(vectorWith(0, 1), 10, { scope: 'project/my-app' });
+    expect(results2.map((r) => r.id)).toContain('chunk_b2');
+  });
 });

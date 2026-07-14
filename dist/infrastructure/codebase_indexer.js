@@ -91,7 +91,7 @@ export class CodebaseIndexer {
         const parsingResult = await this.options.pipeline.process(file, content);
         const chunks = parsingResult.chunks.map((input) => createCodeChunk(input));
         const chunkIds = [];
-        for (const chunk of chunks) {
+        const codebaseChunks = chunks.map((chunk) => {
             const chunkInput = createCodebaseChunkFromCodeChunk(chunk, projectId);
             const now = new Date();
             const codebaseChunk = {
@@ -104,17 +104,22 @@ export class CodebaseIndexer {
                 createdAt: now,
                 updatedAt: now,
             };
-            await this.options.codebaseChunkRepository.save(codebaseChunk);
             chunkIds.push(codebaseChunk.id);
-            if (await this.options.embeddingProvider.isAvailable()) {
-                try {
-                    const text = `${codebaseChunk.title}\n${codebaseChunk.content}`;
-                    const embedding = await this.options.embeddingProvider.embed(text);
-                    await this.options.vectorIndex.index(codebaseChunk, embedding);
-                }
-                catch (error) {
-                    console.warn(`Failed to embed chunk ${codebaseChunk.id}: ${error instanceof Error ? error.message : String(error)}`);
-                }
+            return codebaseChunk;
+        });
+        await this.options.codebaseChunkRepository.saveAll(codebaseChunks);
+        if (codebaseChunks.length > 0 && (await this.options.embeddingProvider.isAvailable())) {
+            try {
+                const texts = codebaseChunks.map((c) => `${c.title}\n${c.content}`);
+                const embeddings = await this.options.embeddingProvider.embedBatch(texts);
+                const vectorIndexItems = codebaseChunks.map((c, idx) => ({
+                    item: c,
+                    embedding: embeddings[idx] ?? [],
+                }));
+                await this.options.vectorIndex.indexBatch(vectorIndexItems);
+            }
+            catch (error) {
+                console.warn(`Failed to embed chunks for file ${file.relativePath}: ${error instanceof Error ? error.message : String(error)}`);
             }
         }
         return chunkIds;

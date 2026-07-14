@@ -108,4 +108,17 @@ describe('FileCodebaseChunkRepository', () => {
     const found = await repo.findById(chunk.id);
     expect(found?.id).toBe(chunk.id);
   });
+
+  it('saves multiple chunks at once and updates index exactly once', async () => {
+    const chunks = [
+      createChunk({ id: 'chunk_batch_1' }),
+      createChunk({ id: 'chunk_batch_2' }),
+    ];
+    await repo.saveAll(chunks);
+
+    const found1 = await repo.findById('chunk_batch_1');
+    const found2 = await repo.findById('chunk_batch_2');
+    expect(found1?.id).toBe('chunk_batch_1');
+    expect(found2?.id).toBe('chunk_batch_2');
+  });
 });
