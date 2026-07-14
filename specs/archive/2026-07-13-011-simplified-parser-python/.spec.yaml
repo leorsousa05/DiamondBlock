@@ -1,0 +1,24 @@
+---
+id: '011'
+slug: simplified-parser-python
+status: completed
+title: Add generic simplified parser and Python AST adapter
+author: architect
+created_at: '2026-07-09'
+updated_at: '2026-07-09'
+type: feat
+scope:
+  - src/application/ports/code_parser.ts
+  - src/application/ports/parser_registry.ts
+  - src/infrastructure/parsing_pipeline.ts
+  - src/infrastructure/simplified_parser.ts
+  - src/infrastructure/simplified_parser.test.ts
+  - src/infrastructure/python_parser.ts
+  - src/infrastructure/python_parser.test.ts
+  - src/infrastructure/language_patterns/python_patterns.ts
+  - src/infrastructure/language_patterns/python_patterns.test.ts
+  - src/infrastructure/parser_registry_impl.ts
+  - src/container_factory.ts
+  - package.json
+  - package-lock.json
+  - specs/living/diamondblock-core.md

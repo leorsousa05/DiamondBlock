@@ -14,6 +14,9 @@ import { FileCodebaseScanner } from './infrastructure/file_codebase_scanner.js';
 import { FileCodebaseChunkRepository } from './infrastructure/file_codebase_chunk_repository.js';
 import { ParserRegistryImpl } from './infrastructure/parser_registry_impl.js';
 import { TypeScriptParser } from './infrastructure/typescript_parser.js';
+import { PythonParser } from './infrastructure/python_parser.js';
+import { SimplifiedParser } from './infrastructure/simplified_parser.js';
+import { pythonPatterns } from './infrastructure/language_patterns/python_patterns.js';
 import { SmartFallbackChunker } from './infrastructure/smart_fallback_chunker.js';
 import { SemanticChunkBuilderImpl } from './infrastructure/semantic_chunk_builder_impl.js';
 import { ParsingPipeline } from './infrastructure/parsing_pipeline.js';
@@ -52,6 +55,14 @@ export async function createDefaultContainer(vaultPath?: string): Promise<Contai
   const codebaseScanner = new FileCodebaseScanner();
   const parserRegistry = new ParserRegistryImpl();
   parserRegistry.register('typescript', new TypeScriptParser());
+
+  const pythonSimplifiedParser = new SimplifiedParser({ patterns: pythonPatterns, confidence: 0.65 });
+  parserRegistry.register('python', new PythonParser({
+    fallbackOnError: true,
+    simplifiedParser: pythonSimplifiedParser,
+  }));
+  parserRegistry.register('python-simplified', pythonSimplifiedParser);
+
   const fallbackChunker = new SmartFallbackChunker();
   const semanticChunkBuilder = new SemanticChunkBuilderImpl();
   const parsingPipeline = new ParsingPipeline({

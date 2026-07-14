@@ -1,6 +1,6 @@
 ---
 created_at: 2026-07-08
-updated_at: 2026-07-08
+updated_at: 2026-07-09
 project_name: ai-native-codebase-indexer
 ---
 
@@ -14,8 +14,10 @@ project_name: ai-native-codebase-indexer
 | v1: CLI `dblock index` e MCP `index_codebase` | done | P0 | Entregue em `main` |
 | v1: Contexto de código no `get_context` | done | P0 | Entregue em `main` |
 | v1: Suporte expandido a extensões e arquivos especiais | done | P0 | Entregue em `main` |
-| Milestone 1: Motor de parsing em cascata + chunk builder genérico + TS/JS | not started | P0 | Próximo passo concreto |
-| Milestone 2: Parser simplificado genérico + Python | not started | P0 | Depende do Milestone 1 |
+| Milestone 1: Motor de parsing em cascata + chunk builder genérico + TS/JS | done | P0 | Entregue em `main` via specs 007–008 |
+| Separação do índice de codebase do sistema de memórias | done | P0 | Entregue em `main` via spec 008 |
+| Web UI (`dblock web`) com Fastify + React/Vite | done | P1 | Entregue em `main` via specs 009–010 |
+| Milestone 2: Parser simplificado genérico + Python | in progress | P0 | Próximo passo concreto |
 | Milestone 3: Extração de símbolos e relações para TS/JS e Python | not started | P1 | Depende do Milestone 2 |
 | Milestone 4: Knowledge graph leve | not started | P1 | Depende do Milestone 3 |
 | Milestone 5: Adapters: Go, Rust e PHP | not started | P1 | Depende do Milestone 4 |

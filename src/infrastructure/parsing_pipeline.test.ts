@@ -4,6 +4,9 @@ import { ParserRegistryImpl } from './parser_registry_impl.js';
 import { SemanticChunkBuilderImpl } from './semantic_chunk_builder_impl.js';
 import { SmartFallbackChunker } from './smart_fallback_chunker.js';
 import { TypeScriptParser } from './typescript_parser.js';
+import { PythonParser } from './python_parser.js';
+import { SimplifiedParser } from './simplified_parser.js';
+import { pythonPatterns } from './language_patterns/python_patterns.js';
 import type { SourceFile } from '../application/ports/codebase_scanner.js';
 import type { CodeParser, ParsingResult } from '../application/ports/code_parser.js';
 
@@ -89,6 +92,57 @@ describe('ParsingPipeline', () => {
     const result = await pipeline.process(file, content);
 
     expect(result.parsingMode).toBe('ast');
+    expect(result.language).toBe('python');
+  });
+});
+
+describe('ParsingPipeline with real Python parser', () => {
+  const pythonSimplifiedParser = new SimplifiedParser({ patterns: pythonPatterns, confidence: 0.65 });
+  const registry = new ParserRegistryImpl();
+  registry.register('typescript', new TypeScriptParser());
+  registry.register('python', new PythonParser({
+    fallbackOnError: true,
+    simplifiedParser: pythonSimplifiedParser,
+  }));
+  registry.register('python-simplified', pythonSimplifiedParser);
+
+  const pipeline = new ParsingPipeline({
+    registry,
+    fallbackChunker: new SmartFallbackChunker(),
+    semanticChunkBuilder: new SemanticChunkBuilderImpl(),
+  });
+
+  it('processes Python files through the AST parser', async () => {
+    const file: SourceFile = { absolutePath: '/tmp/app.py', relativePath: 'src/app.py' };
+    const content = [
+      'import json',
+      '',
+      'class Processor:',
+      '    def run(self):',
+      '        return json.dumps({"ok": True})',
+      '',
+      'def helper():',
+      '    pass',
+    ].join('\n');
+
+    const result = await pipeline.process(file, content);
+
+    expect(result.parsingMode).toBe('ast');
+    expect(result.language).toBe('python');
+    expect(result.confidence).toBe(0.9);
+    expect(result.symbols.length).toBeGreaterThanOrEqual(3);
+    expect(result.chunks.length).toBeGreaterThanOrEqual(3);
+    expect(result.chunks[0].metadata?.parsingMode).toBe('ast');
+  });
+
+  it('falls back to simplified parser for invalid Python', async () => {
+    const file: SourceFile = { absolutePath: '/tmp/broken.py', relativePath: 'src/broken.py' };
+    const content = 'def broken(\n';
+
+    const result = await pipeline.process(file, content);
+
+    expect(result.parsingMode).toBe('simplified');
+    expect(result.confidence).toBe(0.65);
     expect(result.language).toBe('python');
   });
 });
