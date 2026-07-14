@@ -97,16 +97,110 @@ export class ClaudeMcpInstaller extends JsonFileMcpInstaller {
         return ['claude'];
     }
 }
-export class CodexMcpInstaller extends JsonFileMcpInstaller {
+function parseToml(content) {
+    const lines = content.split(/\r?\n/);
+    const sections = [];
+    let currentSection = { header: '', rawHeader: '', lines: [] };
+    for (const line of lines) {
+        const trimmed = line.trim();
+        const headerMatch = trimmed.match(/^\[([^\]]+)\]$/);
+        if (headerMatch) {
+            if (currentSection.rawHeader || currentSection.lines.length > 0) {
+                sections.push(currentSection);
+            }
+            currentSection = {
+                header: headerMatch[1].trim(),
+                rawHeader: line,
+                lines: [],
+            };
+        }
+        else {
+            currentSection.lines.push(line);
+        }
+    }
+    sections.push(currentSection);
+    return sections;
+}
+function serializeToml(sections) {
+    return sections
+        .map((sec) => {
+        const headerPart = sec.rawHeader ? sec.rawHeader + '\n' : '';
+        return headerPart + sec.lines.join('\n');
+    })
+        .join('\n');
+}
+function updateTomlSection(sections, header, newLines) {
+    const existingIndex = sections.findIndex((s) => s.header === header);
+    const newSection = {
+        header,
+        rawHeader: `[${header}]`,
+        lines: newLines,
+    };
+    if (existingIndex !== -1) {
+        sections[existingIndex] = newSection;
+    }
+    else {
+        sections.push(newSection);
+    }
+    return sections;
+}
+export class CodexMcpInstaller {
     agent = 'codex';
     configPath() {
-        return join(homedir(), '.codex', 'mcp.json');
+        return join(homedir(), '.codex', 'config.toml');
     }
-    serverKey() {
-        return 'diamondblock';
+    getConfigPath() {
+        return this.configPath();
     }
-    detectedCommands() {
-        return ['codex'];
+    async configDirExists() {
+        try {
+            await access(dirname(this.configPath()));
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
+    async isDetected() {
+        const commands = ['codex'];
+        const hasConfigDir = await this.configDirExists();
+        const commandFound = await Promise.all(commands.map((cmd) => commandExists(cmd)));
+        return hasConfigDir || commandFound.some(Boolean);
+    }
+    async install(serverConfig) {
+        const path = this.configPath();
+        await mkdir(dirname(path), { recursive: true });
+        let raw = '';
+        try {
+            raw = await readFile(path, 'utf-8');
+        }
+        catch {
+            // file does not exist
+        }
+        const sections = parseToml(raw);
+        const mainLines = [
+            `command = ${JSON.stringify(serverConfig.command)}`,
+            `args = [${serverConfig.args.map((a) => JSON.stringify(a)).join(', ')}]`,
+        ];
+        let updatedSections = updateTomlSection(sections, 'mcp_servers.diamondblock', mainLines);
+        if (serverConfig.env && Object.keys(serverConfig.env).length > 0) {
+            const envLines = Object.entries(serverConfig.env).map(([k, v]) => `${k} = ${JSON.stringify(v)}`);
+            updatedSections = updateTomlSection(updatedSections, 'mcp_servers.diamondblock.env', envLines);
+        }
+        else {
+            const envIndex = updatedSections.findIndex((s) => s.header === 'mcp_servers.diamondblock.env');
+            if (envIndex !== -1) {
+                updatedSections.splice(envIndex, 1);
+            }
+        }
+        const updatedRaw = serializeToml(updatedSections);
+        await writeFile(path, updatedRaw, 'utf-8');
+        return {
+            agent: this.agent,
+            installed: true,
+            configPath: path,
+            message: `Installed ${this.agent} MCP server`,
+        };
     }
 }
 export class AgyMcpInstaller extends JsonFileMcpInstaller {

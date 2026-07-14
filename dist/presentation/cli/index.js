@@ -27,6 +27,8 @@ import { memoryToMarkdown, memoryFromMarkdown } from '../../infrastructure/markd
 import { UpdateMemoryUseCase } from '../../application/use_cases/update_memory.js';
 import { IndexCodebaseUseCase } from '../../application/use_cases/index_codebase.js';
 import { Scope } from '../../domain/scope.js';
+import { InstallMcpUseCase } from '../../application/use_cases/install_mcp.js';
+import { createDefaultInstallers } from '../../infrastructure/mcp_installers/json_file_installer.js';
 const program = new Command();
 const packageJsonPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'package.json');
 const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf-8'));
@@ -713,6 +715,37 @@ function confirm(question) {
         });
     });
 }
+program
+    .command('install')
+    .description('Install DiamondBlock as an MCP server for detected agents')
+    .option('--target <agent>', 'install for a single agent only (e.g. kimi, codex, claude, cursor)')
+    .option('--dry-run', 'preview what would change without modifying files')
+    .action(async (options) => {
+    const { basePath } = await loadContainer();
+    const installers = createDefaultInstallers();
+    const useCase = new InstallMcpUseCase(installers);
+    const serverJsPath = fileURLToPath(new URL('../mcp/server.js', import.meta.url));
+    const serverConfig = {
+        command: 'node',
+        args: [serverJsPath],
+        env: {
+            DB_HOME: basePath,
+        },
+    };
+    const results = await useCase.execute({
+        serverConfig,
+        target: options.target,
+        dryRun: options.dryRun,
+    });
+    for (const res of results) {
+        if (res.installed) {
+            console.log(chalk.green(`✓ Installed for ${res.agent} at ${res.configPath}: ${res.message}`));
+        }
+        else {
+            console.log(chalk.yellow(`⚠ ${res.agent}: ${res.message}`));
+        }
+    }
+});
 program
     .command('web')
     .description('Start the DiamondBlock web UI')

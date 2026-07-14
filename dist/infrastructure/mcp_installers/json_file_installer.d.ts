@@ -27,11 +27,13 @@ export declare class ClaudeMcpInstaller extends JsonFileMcpInstaller {
     protected serverKey(): string;
     protected detectedCommands(): string[];
 }
-export declare class CodexMcpInstaller extends JsonFileMcpInstaller {
+export declare class CodexMcpInstaller implements McpInstaller {
     readonly agent = "codex";
     protected configPath(): string;
-    protected serverKey(): string;
-    protected detectedCommands(): string[];
+    getConfigPath(): string;
+    private configDirExists;
+    isDetected(): Promise<boolean>;
+    install(serverConfig: McpServerConfig): Promise<McpInstallResult>;
 }
 export declare class AgyMcpInstaller extends JsonFileMcpInstaller {
     readonly agent = "agy";

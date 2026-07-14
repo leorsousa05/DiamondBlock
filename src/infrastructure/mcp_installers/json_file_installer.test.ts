@@ -9,6 +9,7 @@ import {
   CursorMcpInstaller,
   WindsurfMcpInstaller,
   AgyMcpInstaller,
+  CodexMcpInstaller,
   createDefaultInstallers,
 } from './json_file_installer.js';
 import { readFile } from 'node:fs/promises';
@@ -184,5 +185,31 @@ describe('InstallMcpUseCase', () => {
 
     expect(results.length).toBe(1);
     expect(results[0]?.agent).toBe('kimi');
+  });
+
+  it('installs mcp config in config.toml for codex agent', async () => {
+    const codexConfigPath = join(basePath, '.codex', 'config.toml');
+    mkdirSync(dirname(codexConfigPath), { recursive: true });
+
+    const installer = new CodexMcpInstaller();
+    (installer as unknown as { configPath: () => string }).configPath = () => codexConfigPath;
+
+    const useCase = new InstallMcpUseCase([installer]);
+    const results = await useCase.execute({
+      serverConfig: {
+        command: 'node',
+        args: ['/path/to/server.js'],
+        env: { DB_HOME: '/tmp/vault' },
+      },
+    });
+
+    expect(results[0]?.installed).toBe(true);
+
+    const raw = await readFile(codexConfigPath, 'utf-8');
+    expect(raw).toContain('[mcp_servers.diamondblock]');
+    expect(raw).toContain('command = "node"');
+    expect(raw).toContain('args = ["/path/to/server.js"]');
+    expect(raw).toContain('[mcp_servers.diamondblock.env]');
+    expect(raw).toContain('DB_HOME = "/tmp/vault"');
   });
 });

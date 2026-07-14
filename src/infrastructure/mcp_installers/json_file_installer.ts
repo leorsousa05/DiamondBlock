@@ -117,16 +117,132 @@ export class ClaudeMcpInstaller extends JsonFileMcpInstaller {
   }
 }
 
-export class CodexMcpInstaller extends JsonFileMcpInstaller {
+interface TomlSection {
+  header: string;
+  rawHeader: string;
+  lines: string[];
+}
+
+function parseToml(content: string): TomlSection[] {
+  const lines = content.split(/\r?\n/);
+  const sections: TomlSection[] = [];
+  let currentSection: TomlSection = { header: '', rawHeader: '', lines: [] };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const headerMatch = trimmed.match(/^\[([^\]]+)\]$/);
+    if (headerMatch) {
+      if (currentSection.rawHeader || currentSection.lines.length > 0) {
+        sections.push(currentSection);
+      }
+      currentSection = {
+        header: headerMatch[1].trim(),
+        rawHeader: line,
+        lines: [],
+      };
+    } else {
+      currentSection.lines.push(line);
+    }
+  }
+  sections.push(currentSection);
+  return sections;
+}
+
+function serializeToml(sections: TomlSection[]): string {
+  return sections
+    .map((sec) => {
+      const headerPart = sec.rawHeader ? sec.rawHeader + '\n' : '';
+      return headerPart + sec.lines.join('\n');
+    })
+    .join('\n');
+}
+
+function updateTomlSection(
+  sections: TomlSection[],
+  header: string,
+  newLines: string[]
+): TomlSection[] {
+  const existingIndex = sections.findIndex((s) => s.header === header);
+  const newSection: TomlSection = {
+    header,
+    rawHeader: `[${header}]`,
+    lines: newLines,
+  };
+  if (existingIndex !== -1) {
+    sections[existingIndex] = newSection;
+  } else {
+    sections.push(newSection);
+  }
+  return sections;
+}
+
+export class CodexMcpInstaller implements McpInstaller {
   readonly agent = 'codex';
+
   protected configPath(): string {
-    return join(homedir(), '.codex', 'mcp.json');
+    return join(homedir(), '.codex', 'config.toml');
   }
-  protected serverKey(): string {
-    return 'diamondblock';
+
+  getConfigPath(): string {
+    return this.configPath();
   }
-  protected detectedCommands(): string[] {
-    return ['codex'];
+
+  private async configDirExists(): Promise<boolean> {
+    try {
+      await access(dirname(this.configPath()));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async isDetected(): Promise<boolean> {
+    const commands = ['codex'];
+    const hasConfigDir = await this.configDirExists();
+    const commandFound = await Promise.all(commands.map((cmd) => commandExists(cmd)));
+    return hasConfigDir || commandFound.some(Boolean);
+  }
+
+  async install(serverConfig: McpServerConfig): Promise<McpInstallResult> {
+    const path = this.configPath();
+    await mkdir(dirname(path), { recursive: true });
+
+    let raw = '';
+    try {
+      raw = await readFile(path, 'utf-8');
+    } catch {
+      // file does not exist
+    }
+
+    const sections = parseToml(raw);
+    const mainLines = [
+      `command = ${JSON.stringify(serverConfig.command)}`,
+      `args = [${serverConfig.args.map((a) => JSON.stringify(a)).join(', ')}]`,
+    ];
+
+    let updatedSections = updateTomlSection(sections, 'mcp_servers.diamondblock', mainLines);
+
+    if (serverConfig.env && Object.keys(serverConfig.env).length > 0) {
+      const envLines = Object.entries(serverConfig.env).map(
+        ([k, v]) => `${k} = ${JSON.stringify(v)}`
+      );
+      updatedSections = updateTomlSection(updatedSections, 'mcp_servers.diamondblock.env', envLines);
+    } else {
+      const envIndex = updatedSections.findIndex((s) => s.header === 'mcp_servers.diamondblock.env');
+      if (envIndex !== -1) {
+        updatedSections.splice(envIndex, 1);
+      }
+    }
+
+    const updatedRaw = serializeToml(updatedSections);
+    await writeFile(path, updatedRaw, 'utf-8');
+
+    return {
+      agent: this.agent,
+      installed: true,
+      configPath: path,
+      message: `Installed ${this.agent} MCP server`,
+    };
   }
 }
 
