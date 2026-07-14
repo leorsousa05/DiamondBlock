@@ -1,0 +1,13 @@
+---
+id: '012'
+slug: memory-scope-cli
+status: completed
+title: Fix memory scope resolution when --project is passed to CLI add
+author: architect
+created_at: '2026-07-09'
+updated_at: '2026-07-09'
+type: fix
+scope:
+  - src/presentation/cli/index.ts
+  - src/domain/scope.ts
+  - src/presentation/cli/index.test.ts

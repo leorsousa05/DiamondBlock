@@ -5,6 +5,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import Table from 'cli-table3';
 import { readFile } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -50,6 +51,20 @@ async function resolveProject(projectResolver, explicitProject) {
         throw new Error('Could not resolve project');
     }
     return info;
+}
+export function resolveAddMemoryType(options) {
+    return (options.type ?? (options.project ? 'project' : 'knowledge'));
+}
+export async function resolveAddMemoryScope(type, options, resolveProjectFn) {
+    if (options.scope) {
+        return { scope: Scope.normalize(options.scope) };
+    }
+    if (options.project) {
+        const projectId = Scope.normalize(options.project);
+        return { scope: Scope.fromTypeAndProject(type, projectId), projectId };
+    }
+    const project = await resolveProjectFn();
+    return { scope: Scope.fromTypeAndProject(type, project.projectId), projectId: project.projectId };
 }
 program
     .command('init [path]')
@@ -159,7 +174,7 @@ memoryCmd
     .command('add')
     .description('Add a new memory')
     .requiredOption('--title <title>')
-    .option('--type <type>', 'memory type', 'knowledge')
+    .option('--type <type>', 'memory type (default: knowledge, or project when --project is used)')
     .option('--scope <scope>', 'memory scope')
     .option('--project <projectId>', 'project id (derives scope when --scope is omitted; auto-detected when omitted)')
     .option('--content <content>')
@@ -167,21 +182,12 @@ memoryCmd
     .action(async (options) => {
     const { basePath, embeddingProvider, enrichmentService, projectResolver } = await loadContainer();
     const tags = Array.isArray(options.tag) ? options.tag : [options.tag].filter(Boolean);
-    let scope;
-    let projectId;
-    if (options.scope) {
-        scope = Scope.normalize(options.scope);
-    }
-    else if (options.project) {
-        projectId = Scope.normalize(options.project);
-        scope = Scope.fromTypeAndProject(options.type, projectId);
-    }
-    else {
+    const type = resolveAddMemoryType(options);
+    const { scope, projectId } = await resolveAddMemoryScope(type, options, async () => {
         const project = await resolveProject(projectResolver);
-        projectId = project.projectId;
-        console.log(chalk.gray(`Detected project: ${projectId} (${project.source})`));
-        scope = Scope.fromTypeAndProject(options.type, projectId);
-    }
+        console.log(chalk.gray(`Detected project: ${project.projectId} (${project.source})`));
+        return project;
+    });
     let content = options.content;
     if (!content) {
         content = await openEditor('');
@@ -192,7 +198,7 @@ memoryCmd
     const result = await useCase.execute({
         title: options.title,
         content,
-        type: options.type,
+        type,
         scope,
         projectId,
         tags,
@@ -722,5 +728,19 @@ program
         open: options.open,
     });
 });
-program.parse();
+function resolveIsMainModule() {
+    if (!import.meta.url.startsWith('file://') || !process.argv[1]) {
+        return false;
+    }
+    try {
+        return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+    }
+    catch {
+        return false;
+    }
+}
+const isMainModule = resolveIsMainModule();
+if (isMainModule) {
+    program.parse();
+}
 //# sourceMappingURL=index.js.map
