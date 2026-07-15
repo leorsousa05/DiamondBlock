@@ -26,6 +26,8 @@ import { DistillSessionsUseCase } from '../../application/use_cases/distill_sess
 import { memoryToMarkdown, memoryFromMarkdown } from '../../infrastructure/markdown_serializer.js';
 import { UpdateMemoryUseCase } from '../../application/use_cases/update_memory.js';
 import { IndexCodebaseUseCase } from '../../application/use_cases/index_codebase.js';
+import { EvaluateCodebaseIndexUseCase } from '../../application/use_cases/evaluate_codebase_index.js';
+import { ApproximateTokenEstimator } from '../../infrastructure/approximate_token_estimator.js';
 import { Scope } from '../../domain/scope.js';
 import type { MemoryType } from '../../domain/memory.js';
 import { InstallMcpUseCase } from '../../application/use_cases/install_mcp.js';
@@ -684,6 +686,96 @@ async function cleanIndexOrphans(options: { project?: string }): Promise<void> {
   console.log(`Chunks removed:  ${chalk.cyan(result.chunkIdsRemoved)}`);
 }
 
+function parseCsv(value?: string): string[] {
+  if (!value) return [];
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+async function evaluateIndex(
+  projectPath: string | undefined,
+  options: {
+    project?: string;
+    query?: string;
+    expectedFiles?: string;
+    expectedSymbols?: string;
+    limit?: string;
+    force?: boolean;
+  }
+): Promise<void> {
+  const container = await loadContainer();
+  const rootPath = projectPath ?? process.cwd();
+  const projectId = options.project
+    ? Scope.normalizeProjectId(options.project)
+    : (await resolveIndexProject(container.projectResolver, rootPath)).projectId;
+
+  if (!container.codebaseScanner || !container.parsingPipeline || !container.codebaseIndexRepository || !container.codebaseChunkRepository) {
+    console.log(chalk.red('Codebase indexer dependencies are not available.'));
+    process.exit(1);
+  }
+
+  const query = options.query ?? 'codebase index quality';
+  const limit = parseInt(options.limit ?? '5', 10);
+  const useCase = new EvaluateCodebaseIndexUseCase({
+    scanner: container.codebaseScanner,
+    pipeline: container.parsingPipeline,
+    indexRepository: container.codebaseIndexRepository,
+    codebaseChunkRepository: container.codebaseChunkRepository,
+    vectorIndex: container.vectorIndex,
+    embeddingProvider: container.embeddingProvider,
+    tokenEstimator: new ApproximateTokenEstimator(),
+  });
+  const spinner = ora('Evaluating codebase index').start();
+
+  try {
+    const report = await useCase.execute({
+      projectId,
+      rootPath,
+      fixtureName: 'cli',
+      force: options.force,
+      limit,
+      queries: [
+        {
+          id: 'cli-query',
+          query,
+          expectedFiles: parseCsv(options.expectedFiles),
+          expectedSymbols: parseCsv(options.expectedSymbols),
+          limit,
+        },
+      ],
+    });
+
+    spinner.stop();
+    console.log(chalk.bold('Codebase Index Evaluation'));
+    console.log();
+    console.log(`Project:       ${chalk.cyan(report.projectId)}`);
+    console.log(`Files:         ${chalk.cyan(report.totals.filesIndexed)}`);
+    console.log(`Chunks:        ${chalk.cyan(report.totals.chunksIndexed)}`);
+    console.log(`Parser modes:  ${chalk.cyan(`AST ${report.parserModes.ast}, simplified ${report.parserModes.simplified}, fallback ${report.parserModes.fallback}`)}`);
+    console.log(`Token saving:  ${chalk.cyan(`${report.tokenSavings.averageReductionPercent.toFixed(1)}% avg (${report.tokenSavings.method})`)}`);
+    console.log();
+
+    const table = new Table({
+      head: [chalk.bold('Query'), chalk.bold('Top1'), chalk.bold('Top3'), chalk.bold('Top5'), chalk.bold('Tokens')],
+      colWidths: [32, 8, 8, 8, 22],
+    });
+
+    for (const result of report.queries) {
+      table.push([
+        result.query,
+        result.hitTop1 ? 'yes' : 'no',
+        result.hitTop3 ? 'yes' : 'no',
+        result.hitTop5 ? 'yes' : 'no',
+        `${result.retrievedTokenEstimate}/${result.baselineTokenEstimate}`,
+      ]);
+    }
+
+    console.log(table.toString());
+  } catch (error) {
+    spinner.fail(`Evaluation failed: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  }
+}
+
 indexCmd
   .command('run [path]', { isDefault: true })
   .description('Index a codebase into the vault for semantic code search')
@@ -804,6 +896,19 @@ indexCmd
       spinner.fail(`Search failed: ${error instanceof Error ? error.message : error}`);
       process.exit(1);
     }
+  });
+
+indexCmd
+  .command('evaluate [path]')
+  .description('Evaluate codebase search quality and approximate token savings')
+  .option('--project <projectId>', 'project id (auto-detected when omitted)')
+  .option('--query <query>', 'query to evaluate', 'codebase index quality')
+  .option('--expected-files <files>', 'comma-separated expected file paths')
+  .option('--expected-symbols <symbols>', 'comma-separated expected symbols')
+  .option('--limit <limit>', 'number of search results', '5')
+  .option('--force', 'reindex all files before evaluating')
+  .action(async (projectPath: string | undefined, options) => {
+    await evaluateIndex(projectPath, options);
   });
 
 indexCmd

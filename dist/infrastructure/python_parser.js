@@ -21,6 +21,11 @@ export class PythonParser {
             }
             const imports = this.extractImports(root);
             const symbols = this.extractSymbols(file, content, root);
+            const relations = this.extractRelations(symbols, root);
+            const relationCountBySymbol = new Map();
+            for (const relation of relations) {
+                relationCountBySymbol.set(relation.fromSymbolId, (relationCountBySymbol.get(relation.fromSymbolId) ?? 0) + 1);
+            }
             const lines = content.split('\n');
             const chunks = buildChunks({
                 file,
@@ -33,6 +38,12 @@ export class PythonParser {
                 supportsGraph: true,
                 supportsSymbols: true,
             });
+            for (const chunk of chunks) {
+                const symbolId = chunk.metadata?.symbolIds[0];
+                if (chunk.metadata && symbolId) {
+                    chunk.metadata.relationCount = relationCountBySymbol.get(symbolId) ?? 0;
+                }
+            }
             return {
                 language: 'python',
                 parsingMode: 'ast',
@@ -40,7 +51,7 @@ export class PythonParser {
                 supportsGraph: true,
                 supportsSymbols: true,
                 symbols,
-                relations: [],
+                relations,
                 chunks,
             };
         }
@@ -113,6 +124,70 @@ export class PythonParser {
             return insideClass ? 'method' : 'function';
         }
         return 'unknown';
+    }
+    extractRelations(symbols, root) {
+        const relations = [];
+        const symbolByStartLine = new Map(symbols.map((symbol) => [symbol.startLine, symbol]));
+        const imports = this.extractImportSpecifiers(root);
+        for (const symbol of symbols) {
+            for (const moduleSpecifier of imports) {
+                relations.push({
+                    fromSymbolId: symbol.id,
+                    toModuleSpecifier: moduleSpecifier,
+                    type: 'imports',
+                    confidence: 0.7,
+                });
+            }
+        }
+        const visit = (node) => {
+            if (node.type === 'class_definition') {
+                const symbol = symbolByStartLine.get(node.startPosition.row + 1);
+                if (symbol) {
+                    for (const superclass of this.extractSuperclasses(node)) {
+                        relations.push({
+                            fromSymbolId: symbol.id,
+                            toSymbolName: superclass,
+                            type: 'extends',
+                            confidence: 0.8,
+                        });
+                    }
+                }
+            }
+            for (const child of node.children) {
+                visit(child);
+            }
+        };
+        visit(root);
+        return relations;
+    }
+    extractImportSpecifiers(root) {
+        const specifiers = [];
+        const visit = (node) => {
+            if (node.type === 'import_statement') {
+                const text = node.text.replace(/^import\s+/, '').trim();
+                if (text)
+                    specifiers.push(text);
+            }
+            if (node.type === 'import_from_statement') {
+                const match = node.text.match(/^from\s+([^\s]+)\s+import\s+/);
+                if (match?.[1])
+                    specifiers.push(match[1]);
+            }
+            for (const child of node.children) {
+                visit(child);
+            }
+        };
+        visit(root);
+        return [...new Set(specifiers)];
+    }
+    extractSuperclasses(node) {
+        const argumentList = node.children.find((child) => child.type === 'argument_list');
+        if (!argumentList)
+            return [];
+        return argumentList.children
+            .filter((child) => child.type === 'identifier' || child.type === 'attribute')
+            .map((child) => child.text.trim())
+            .filter(Boolean);
     }
 }
 //# sourceMappingURL=python_parser.js.map

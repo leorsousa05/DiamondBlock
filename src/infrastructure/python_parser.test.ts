@@ -69,6 +69,44 @@ describe('PythonParser', () => {
     expect(result.chunks[0].metadata?.imports).toContain('from functools import lru_cache');
   });
 
+  it('captures import and inheritance relation candidates', async () => {
+    const content = [
+      'from decimal import Decimal',
+      '',
+      'class Money(Decimal):',
+      '    pass',
+    ].join('\n');
+
+    const result = await parser.parse(sourceFile('src/money.py'), content);
+    const moneyClass = result.symbols.find((s) => s.name === 'Money');
+
+    expect(moneyClass).toBeDefined();
+    expect(result.relations).toContainEqual(expect.objectContaining({
+      fromSymbolId: moneyClass?.id,
+      toModuleSpecifier: 'decimal',
+      type: 'imports',
+    }));
+    expect(result.relations).toContainEqual(expect.objectContaining({
+      fromSymbolId: moneyClass?.id,
+      toSymbolName: 'Decimal',
+      type: 'extends',
+    }));
+    const moneyChunk = result.chunks.find((c) => c.metadata?.symbolIds.includes(moneyClass?.id ?? ''));
+    expect(moneyChunk?.metadata?.relationCount).toBe(2);
+  });
+
+  it('parses async functions', async () => {
+    const content = [
+      'async def load_user():',
+      '    return None',
+    ].join('\n');
+
+    const result = await parser.parse(sourceFile('src/async_app.py'), content);
+
+    expect(result.symbols.some((s) => s.name === 'load_user' && s.kind === 'function')).toBe(true);
+    expect(result.parsingMode).toBe('ast');
+  });
+
   it('falls back to simplified parser on error when configured', async () => {
     const simplifiedParser = new SimplifiedParser({ patterns: pythonPatterns, confidence: 0.65 });
     const fallbackParser = new PythonParser({

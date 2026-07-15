@@ -111,6 +111,7 @@ export class TypeScriptParser {
         const confidence = hasParseErrors ? 0.6 : 0.95;
         const imports = this.extractImports(sourceFile);
         const symbols = [];
+        const relations = [];
         const chunks = [];
         const visit = (node) => {
             if (this.isTopLevelSymbol(node, sourceFile)) {
@@ -135,6 +136,7 @@ export class TypeScriptParser {
                         signature: this.buildSignature(name, node, sourceFile),
                     });
                     const chunkContent = this.extractSymbolContent(content, startLine, endLine);
+                    const symbolRelations = this.extractRelations(symbolId, node, sourceFile);
                     chunks.push({
                         filePath: file.relativePath,
                         startLine,
@@ -150,8 +152,10 @@ export class TypeScriptParser {
                             imports,
                             symbolIds: [symbolId],
                             chunkType: kind,
+                            relationCount: symbolRelations.length,
                         },
                     });
+                    relations.push(...symbolRelations);
                 }
             }
             ts.forEachChild(node, visit);
@@ -164,7 +168,7 @@ export class TypeScriptParser {
             supportsGraph: true,
             supportsSymbols: true,
             symbols,
-            relations: [],
+            relations,
             chunks,
         };
     }
@@ -209,6 +213,39 @@ export class TypeScriptParser {
             return `${name}${typeParams}`;
         }
         return undefined;
+    }
+    extractRelations(fromSymbolId, node, sourceFile) {
+        const relations = [];
+        for (const moduleSpecifier of this.extractImportSpecifiers(sourceFile)) {
+            relations.push({
+                fromSymbolId,
+                toModuleSpecifier: moduleSpecifier,
+                type: 'imports',
+                confidence: 0.7,
+            });
+        }
+        if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
+            for (const clause of node.heritageClauses ?? []) {
+                for (const heritageType of clause.types) {
+                    relations.push({
+                        fromSymbolId,
+                        toSymbolName: heritageType.expression.getText(sourceFile),
+                        type: clause.token === ts.SyntaxKind.ExtendsKeyword ? 'extends' : 'implements',
+                        confidence: 0.8,
+                    });
+                }
+            }
+        }
+        return relations;
+    }
+    extractImportSpecifiers(sourceFile) {
+        const imports = [];
+        for (const statement of sourceFile.statements) {
+            if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+                imports.push(statement.moduleSpecifier.text);
+            }
+        }
+        return [...new Set(imports)];
     }
     extractSymbolContent(content, startLine, endLine) {
         const lines = content.split('\n');

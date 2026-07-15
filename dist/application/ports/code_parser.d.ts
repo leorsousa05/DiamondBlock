@@ -13,8 +13,11 @@ export interface CodeSymbol {
 }
 export interface SymbolRelation {
     fromSymbolId: string;
-    toSymbolId: string;
+    toSymbolId?: string;
+    toSymbolName?: string;
+    toModuleSpecifier?: string;
     type: 'calls' | 'imports' | 'extends' | 'implements' | 'references';
+    confidence?: number;
 }
 export interface ChunkMetadata {
     parsingMode: ParsingMode;
@@ -26,6 +29,7 @@ export interface ChunkMetadata {
     symbolIds: string[];
     parentSymbolId?: string;
     chunkType?: string;
+    relationCount?: number;
 }
 export interface ParsingResult {
     language: string;

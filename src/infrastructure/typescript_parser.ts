@@ -3,6 +3,7 @@ import type { SourceFile } from '../application/ports/codebase_scanner.js';
 import type { CodeChunkInput } from '../application/ports/code_chunker.js';
 import type {
   CodeParser,
+  SymbolRelation,
   CodeSymbol,
   ParsingResult,
   SymbolKind,
@@ -131,6 +132,7 @@ export class TypeScriptParser implements CodeParser {
 
     const imports = this.extractImports(sourceFile);
     const symbols: CodeSymbol[] = [];
+    const relations: SymbolRelation[] = [];
     const chunks: CodeChunkInput[] = [];
 
     const visit = (node: ts.Node) => {
@@ -163,6 +165,8 @@ export class TypeScriptParser implements CodeParser {
             endLine
           );
 
+          const symbolRelations = this.extractRelations(symbolId, node, sourceFile);
+
           chunks.push({
             filePath: file.relativePath,
             startLine,
@@ -178,8 +182,11 @@ export class TypeScriptParser implements CodeParser {
               imports,
               symbolIds: [symbolId],
               chunkType: kind,
+              relationCount: symbolRelations.length,
             },
           });
+
+          relations.push(...symbolRelations);
         }
       }
 
@@ -195,7 +202,7 @@ export class TypeScriptParser implements CodeParser {
       supportsGraph: true,
       supportsSymbols: true,
       symbols,
-      relations: [],
+      relations,
       chunks,
     };
   }
@@ -253,6 +260,50 @@ export class TypeScriptParser implements CodeParser {
     }
 
     return undefined;
+  }
+
+  private extractRelations(
+    fromSymbolId: string,
+    node: ts.Node,
+    sourceFile: ts.SourceFile
+  ): SymbolRelation[] {
+    const relations: SymbolRelation[] = [];
+
+    for (const moduleSpecifier of this.extractImportSpecifiers(sourceFile)) {
+      relations.push({
+        fromSymbolId,
+        toModuleSpecifier: moduleSpecifier,
+        type: 'imports',
+        confidence: 0.7,
+      });
+    }
+
+    if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
+      for (const clause of node.heritageClauses ?? []) {
+        for (const heritageType of clause.types) {
+          relations.push({
+            fromSymbolId,
+            toSymbolName: heritageType.expression.getText(sourceFile),
+            type: clause.token === ts.SyntaxKind.ExtendsKeyword ? 'extends' : 'implements',
+            confidence: 0.8,
+          });
+        }
+      }
+    }
+
+    return relations;
+  }
+
+  private extractImportSpecifiers(sourceFile: ts.SourceFile): string[] {
+    const imports: string[] = [];
+
+    for (const statement of sourceFile.statements) {
+      if (ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)) {
+        imports.push(statement.moduleSpecifier.text);
+      }
+    }
+
+    return [...new Set(imports)];
   }
 
   private extractSymbolContent(

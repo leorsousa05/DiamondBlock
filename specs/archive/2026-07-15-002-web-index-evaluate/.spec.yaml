@@ -1,0 +1,13 @@
+id: 002-web-index-evaluate
+title: Web UI for index evaluation and parser metadata visibility
+status: completed
+created: 2026-07-15
+updated: 2026-07-15
+owner: architect
+type: feature
+scope:
+  - presentation/web
+  - web
+ui: true
+depends_on:
+  - 001-ast-ranking-validation

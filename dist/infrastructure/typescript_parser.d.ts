@@ -7,6 +7,8 @@ export declare class TypeScriptParser implements CodeParser {
     private isTopLevelSymbol;
     private extractImports;
     private buildSignature;
+    private extractRelations;
+    private extractImportSpecifiers;
     private extractSymbolContent;
     private symbolId;
     private detectLanguage;

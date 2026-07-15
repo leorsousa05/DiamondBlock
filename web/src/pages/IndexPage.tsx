@@ -5,6 +5,7 @@ import { DataTable } from '../components/DataTable';
 import { SearchBar } from '../components/SearchBar';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProgressBar } from '../components/ProgressBar';
+import { EvaluationPanel } from '../components/EvaluationPanel';
 import { FolderGit2, Trash2, FolderOpen, Folder, File, ArrowUp, X, Play } from 'lucide-react';
 
 function formatDate(iso: string | null): string {
@@ -43,7 +44,7 @@ export default function IndexPage() {
   const [browseError, setBrowseError] = useState<string | null>(null);
 
   // Chunks tab
-  const [activeTab, setActiveTab] = useState<'status' | 'chunks'>('status');
+  const [activeTab, setActiveTab] = useState<'status' | 'chunks' | 'evaluate'>('status');
   const [chunks, setChunks] = useState<CodeChunk[]>([]);
   const [chunksLoading, setChunksLoading] = useState(false);
   const [chunkQuery, setChunkQuery] = useState('');
@@ -205,6 +206,23 @@ export default function IndexPage() {
       width: '100px',
     },
     {
+      header: 'Mode',
+      key: 'parsingMode',
+      width: '110px',
+      render: (row: CodeChunk) => {
+        const mode = row.metadata?.parsingMode;
+        if (!mode) return '—';
+        const badgeClass = mode === 'ast' ? 'badge-success' : mode === 'simplified' ? 'badge-warning' : 'badge-default';
+        return (
+          <span className={`badge ${badgeClass}`} style={{ fontSize: 11 }}>
+            {mode}{typeof row.metadata?.relationCount === 'number' && row.metadata.relationCount > 0
+              ? ` · ${row.metadata.relationCount} rel`
+              : ''}
+          </span>
+        );
+      },
+    },
+    {
       header: 'Lang',
       key: 'language',
       width: '80px',
@@ -250,6 +268,12 @@ export default function IndexPage() {
           onClick={() => setActiveTab('chunks')}
         >
           Chunks
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'evaluate' ? 'active' : ''}`}
+          onClick={() => setActiveTab('evaluate')}
+        >
+          Evaluate
         </button>
       </div>
 
@@ -471,6 +495,10 @@ export default function IndexPage() {
           </div>
         );
       })()}
+
+      {activeTab === 'evaluate' && (
+        <EvaluationPanel projectPath={projectPath} onEvaluationComplete={fetchStatus} />
+      )}
 
       {/* Directory Browser Modal */}
       {showFolderPicker && (

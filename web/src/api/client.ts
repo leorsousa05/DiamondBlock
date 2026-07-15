@@ -55,6 +55,49 @@ export interface CodeChunk {
   content: string;
   chunkType: string;
   language: string;
+  metadata?: {
+    parsingMode?: 'ast' | 'simplified' | 'fallback';
+    relationCount?: number;
+  };
+}
+
+export interface IndexEvaluationQueryResult {
+  queryId: string;
+  query: string;
+  expectedFiles: string[];
+  expectedSymbols: string[];
+  returnedChunkIds: string[];
+  returnedFiles: string[];
+  hitTop1: boolean;
+  hitTop3: boolean;
+  hitTop5: boolean;
+  retrievedTokenEstimate: number;
+  baselineTokenEstimate: number;
+  tokenReductionPercent: number;
+}
+
+export interface IndexEvaluationReport {
+  projectId: string;
+  fixtureName: string;
+  generatedAt: string;
+  totals: {
+    filesIndexed: number;
+    chunksIndexed: number;
+    symbolsIndexed: number;
+    relationsIndexed: number;
+  };
+  queries: IndexEvaluationQueryResult[];
+  parserModes: {
+    ast: number;
+    simplified: number;
+    fallback: number;
+  };
+  tokenSavings: {
+    method: 'approximate';
+    averageReductionPercent: number;
+    minReductionPercent: number;
+    maxReductionPercent: number;
+  };
 }
 
 export interface McpTarget {
@@ -174,6 +217,19 @@ export const api = {
 
   runIndex: (body: { projectPath?: string; projectId?: string; force?: boolean; dryRun?: boolean }) =>
     apiFetch<{ operationId: string }>('/index/run', { method: 'POST', body: JSON.stringify(body) }),
+
+  evaluateIndex: (body: {
+    projectPath?: string;
+    projectId?: string;
+    query: string;
+    expectedFiles?: string[];
+    expectedSymbols?: string[];
+    limit?: number;
+    force?: boolean;
+  }) => apiFetch<IndexEvaluationReport>('/index/evaluate', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  }),
 
   purgeIndex: (body?: { projectId?: string }) =>
     apiFetch<{ deleted: number }>('/index/purge', { method: 'POST', body: JSON.stringify(body ?? {}) }),

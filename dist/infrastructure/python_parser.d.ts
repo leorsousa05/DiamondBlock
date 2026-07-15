@@ -14,5 +14,8 @@ export declare class PythonParser implements CodeParser {
     private extractImports;
     private extractSymbols;
     private symbolKind;
+    private extractRelations;
+    private extractImportSpecifiers;
+    private extractSuperclasses;
 }
 //# sourceMappingURL=python_parser.d.ts.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"approximate_token_estimator.d.ts","sourceRoot":"","sources":["../../src/infrastructure/approximate_token_estimator.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,aAAa,EAAE,cAAc,EAAE,MAAM,yCAAyC,CAAC;AAE7F,qBAAa,yBAA0B,YAAW,cAAc;IAC9D,QAAQ,CAAC,IAAI,EAAE,MAAM,GAAG,aAAa;CAatC"}

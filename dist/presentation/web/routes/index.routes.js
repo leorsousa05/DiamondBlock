@@ -1,5 +1,7 @@
 import { nanoid } from 'nanoid';
 import { IndexCodebaseUseCase } from '../../../application/use_cases/index_codebase.js';
+import { EvaluateCodebaseIndexUseCase } from '../../../application/use_cases/evaluate_codebase_index.js';
+import { ApproximateTokenEstimator } from '../../../infrastructure/approximate_token_estimator.js';
 import { sseManager } from '../sse_manager.js';
 export const indexRoutes = async (app, opts) => {
     const { container } = opts;
@@ -90,6 +92,70 @@ export const indexRoutes = async (app, opts) => {
             }
         }
         return reply.send([]);
+    });
+    app.post('/api/index/evaluate', async (req, reply) => {
+        if (!codebaseScanner || !parsingPipeline || !codebaseIndexRepository || !codebaseChunkRepository) {
+            return reply.code(503).send({ error: 'Indexing infrastructure not available' });
+        }
+        const body = (req.body ?? {});
+        const query = typeof body.query === 'string' ? body.query.trim() : '';
+        if (!query) {
+            return reply.code(400).send({ error: 'query is required' });
+        }
+        const limit = body.limit === undefined ? 5 : Number(body.limit);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 50) {
+            return reply.code(400).send({ error: 'limit must be an integer between 1 and 50' });
+        }
+        const projectPath = typeof body.projectPath === 'string' && body.projectPath.trim()
+            ? body.projectPath.trim()
+            : process.cwd();
+        let projectId = typeof body.projectId === 'string' && body.projectId.trim()
+            ? body.projectId.trim()
+            : undefined;
+        if (!projectId) {
+            const resolved = await projectResolver.resolve(projectPath);
+            projectId = resolved?.projectId;
+        }
+        if (!projectId) {
+            return reply.code(400).send({ error: 'Could not resolve project from projectPath' });
+        }
+        const expectedFiles = Array.isArray(body.expectedFiles)
+            ? body.expectedFiles.filter((value) => typeof value === 'string' && value.trim().length > 0)
+            : [];
+        const expectedSymbols = Array.isArray(body.expectedSymbols)
+            ? body.expectedSymbols.filter((value) => typeof value === 'string' && value.trim().length > 0)
+            : [];
+        try {
+            const useCase = new EvaluateCodebaseIndexUseCase({
+                scanner: codebaseScanner,
+                pipeline: parsingPipeline,
+                indexRepository: codebaseIndexRepository,
+                codebaseChunkRepository,
+                vectorIndex,
+                embeddingProvider,
+                tokenEstimator: new ApproximateTokenEstimator(),
+            });
+            const report = await useCase.execute({
+                projectId,
+                rootPath: projectPath,
+                fixtureName: 'web',
+                force: body.force === true,
+                limit,
+                queries: [{
+                        id: 'web-query',
+                        query,
+                        expectedFiles,
+                        expectedSymbols,
+                        limit,
+                    }],
+            });
+            return reply.send(report);
+        }
+        catch (error) {
+            return reply.code(500).send({
+                error: error instanceof Error ? error.message : 'Index evaluation failed',
+            });
+        }
     });
     // POST /api/index/run
     app.post('/api/index/run', async (req, reply) => {

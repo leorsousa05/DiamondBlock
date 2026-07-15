@@ -1,0 +1,28 @@
+id: 001-ast-ranking-validation
+title: AST parser coverage, ranking quality, and token-savings validation
+status: completed
+created: 2026-07-15
+updated: 2026-07-15
+owner: architect
+type: improvement
+scope:
+  - infrastructure
+  - application
+  - cli
+  - tests
+ui: false
+subagents:
+  approved: true
+  components:
+    - name: ast-parser-improvements
+      scope: Improve TypeScript and Python parser symbol coverage and relation extraction.
+      files: src/infrastructure/*parser*.ts, src/infrastructure/*parser*.test.ts, src/application/ports/code_parser.ts
+      constraints: Do not alter vector index persistence or CLI command contracts.
+    - name: ranking-evaluation
+      scope: Add deterministic evaluation fixtures and quality metrics for semantic code search relevance and token savings.
+      files: src/infrastructure/*evaluation*.ts, src/infrastructure/*evaluation*.test.ts, src/application/ports/*evaluation*.ts
+      constraints: Do not require remote services or OpenAI credentials.
+    - name: cli-reporting
+      scope: Expose evaluation results through a lightweight CLI command or report option.
+      files: src/presentation/cli/index.ts, src/application/use_cases/*evaluation*.ts, related tests
+      constraints: Preserve existing CLI command behavior and output compatibility.

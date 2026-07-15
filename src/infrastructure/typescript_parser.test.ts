@@ -78,6 +78,56 @@ export function App() {
     expect(config?.kind).toBe('interface');
   });
 
+  it('captures import and inheritance relation candidates', async () => {
+    const content = `import { Base } from './base';
+
+interface Serializable {}
+
+export class User extends Base implements Serializable {
+  greet(): string {
+    return 'hello';
+  }
+}`;
+
+    const result = await parser.parse(file, content);
+    const userClass = result.symbols.find((s) => s.name === 'User');
+
+    expect(userClass).toBeDefined();
+    expect(result.relations).toContainEqual(expect.objectContaining({
+      fromSymbolId: userClass?.id,
+      toModuleSpecifier: './base',
+      type: 'imports',
+    }));
+    expect(result.relations).toContainEqual(expect.objectContaining({
+      fromSymbolId: userClass?.id,
+      toSymbolName: 'Base',
+      type: 'extends',
+    }));
+    expect(result.relations).toContainEqual(expect.objectContaining({
+      fromSymbolId: userClass?.id,
+      toSymbolName: 'Serializable',
+      type: 'implements',
+    }));
+    const userChunk = result.chunks.find((c) => c.metadata?.symbolIds.includes(userClass?.id ?? ''));
+    expect(userChunk?.metadata?.relationCount).toBe(3);
+  });
+
+  it('parses default exported functions and enums', async () => {
+    const content = `export enum Role {
+  Admin = 'admin'
+}
+
+export default function createUser() {
+  return { role: Role.Admin };
+}`;
+
+    const result = await parser.parse(file, content);
+
+    expect(result.symbols.some((s) => s.name === 'Role' && s.kind === 'enum')).toBe(true);
+    expect(result.symbols.some((s) => s.name === 'createUser' && s.kind === 'function')).toBe(true);
+    expect(result.parsingMode).toBe('ast');
+  });
+
   it('does not emit nested const declarations as separate chunks', async () => {
     const content = `export function createService() {
   return {
