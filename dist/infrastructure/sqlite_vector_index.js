@@ -165,6 +165,20 @@ export class SqliteVectorIndex {
         });
         transaction();
     }
+    async removeBatch(ids) {
+        if (ids.length === 0)
+            return;
+        const db = this.getDb();
+        const deleteMemory = db.prepare('DELETE FROM memories WHERE id = ?');
+        const deleteVec = db.prepare('DELETE FROM vec_memories WHERE memory_id = ?');
+        const transaction = db.transaction(() => {
+            for (const id of ids) {
+                deleteMemory.run(id);
+                deleteVec.run(id);
+            }
+        });
+        transaction();
+    }
     async close() {
         this.db?.close();
         this.db = null;

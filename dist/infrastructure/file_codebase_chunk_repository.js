@@ -17,11 +17,11 @@ export class FileCodebaseChunkRepository {
     async saveAll(chunks) {
         if (chunks.length === 0)
             return;
-        for (const chunk of chunks) {
+        await Promise.all(chunks.map(async (chunk) => {
             const path = this.idToPath(chunk.id, chunk.projectId);
             await mkdir(dirname(path), { recursive: true });
             await writeFile(path, JSON.stringify(this.serialize(chunk), null, 2), 'utf-8');
-        }
+        }));
         const index = await this.loadIndex();
         for (const chunk of chunks) {
             index[chunk.id] = chunk.projectId;
@@ -62,6 +62,28 @@ export class FileCodebaseChunkRepository {
             return;
         }
         await this.fallbackDelete(id);
+    }
+    async deleteAll(ids) {
+        if (ids.length === 0)
+            return;
+        const index = await this.loadIndex();
+        const toRemoveFiles = [];
+        const idsToFallback = [];
+        for (const id of ids) {
+            const projectId = index[id];
+            if (projectId) {
+                toRemoveFiles.push(this.idToPath(id, projectId));
+                delete index[id];
+            }
+            else {
+                idsToFallback.push(id);
+            }
+        }
+        await Promise.all(toRemoveFiles.map((path) => rm(path, { force: true }).catch(() => { })));
+        await this.saveIndex(index);
+        for (const id of idsToFallback) {
+            await this.fallbackDelete(id);
+        }
     }
     async list(options) {
         const projectDir = join(this.chunksDir, options.projectId);

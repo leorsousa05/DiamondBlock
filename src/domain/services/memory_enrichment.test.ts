@@ -41,6 +41,7 @@ class FakeVectorIndex implements VectorIndex {
     return [];
   }
   async remove(): Promise<void> {}
+  async removeBatch(): Promise<void> {}
 }
 
 class FakeEmbeddingProvider implements EmbeddingProvider {
@@ -79,6 +80,7 @@ class TagInferringVectorIndex implements VectorIndex {
     return [{ id: 'similar', score: 0.9 }];
   }
   async remove(): Promise<void> {}
+  async removeBatch(): Promise<void> {}
 }
 
 describe('MemoryEnrichmentService', () => {

@@ -21,6 +21,7 @@ export interface VectorIndex {
     }>): Promise<void>;
     search(embedding: number[], limit: number, options?: VectorSearchOptions): Promise<SearchResult[]>;
     remove(id: string): Promise<void>;
+    removeBatch(ids: string[]): Promise<void>;
     close?(): Promise<void>;
 }
 //# sourceMappingURL=vector_index.d.ts.map

@@ -52,11 +52,13 @@ export class FileCodebaseChunkRepository implements CodebaseChunkRepository {
   async saveAll(chunks: CodebaseChunk[]): Promise<void> {
     if (chunks.length === 0) return;
 
-    for (const chunk of chunks) {
-      const path = this.idToPath(chunk.id, chunk.projectId);
-      await mkdir(dirname(path), { recursive: true });
-      await writeFile(path, JSON.stringify(this.serialize(chunk), null, 2), 'utf-8');
-    }
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const path = this.idToPath(chunk.id, chunk.projectId);
+        await mkdir(dirname(path), { recursive: true });
+        await writeFile(path, JSON.stringify(this.serialize(chunk), null, 2), 'utf-8');
+      })
+    );
 
     const index = await this.loadIndex();
     for (const chunk of chunks) {
@@ -102,6 +104,33 @@ export class FileCodebaseChunkRepository implements CodebaseChunkRepository {
     }
 
     await this.fallbackDelete(id);
+  }
+
+  async deleteAll(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const index = await this.loadIndex();
+    const toRemoveFiles: string[] = [];
+    const idsToFallback: string[] = [];
+
+    for (const id of ids) {
+      const projectId = index[id];
+      if (projectId) {
+        toRemoveFiles.push(this.idToPath(id, projectId));
+        delete index[id];
+      } else {
+        idsToFallback.push(id);
+      }
+    }
+
+    await Promise.all(
+      toRemoveFiles.map((path) => rm(path, { force: true }).catch(() => {}))
+    );
+
+    await this.saveIndex(index);
+
+    for (const id of idsToFallback) {
+      await this.fallbackDelete(id);
+    }
   }
 
   async list(options: CodebaseChunkListOptions): Promise<CodebaseChunk[]> {

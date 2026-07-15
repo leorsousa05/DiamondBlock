@@ -10,6 +10,7 @@ export declare class FileCodebaseChunkRepository implements CodebaseChunkReposit
     saveAll(chunks: CodebaseChunk[]): Promise<void>;
     findById(id: string): Promise<CodebaseChunk | null>;
     delete(id: string): Promise<void>;
+    deleteAll(ids: string[]): Promise<void>;
     list(options: CodebaseChunkListOptions): Promise<CodebaseChunk[]>;
     purge(projectId: string): Promise<number>;
     private idToPath;

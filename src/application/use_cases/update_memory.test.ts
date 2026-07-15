@@ -45,6 +45,7 @@ class FakeVectorIndex implements VectorIndex {
     return [];
   }
   async remove(): Promise<void> {}
+  async removeBatch(): Promise<void> {}
 }
 
 class FakeEmbeddingProvider implements EmbeddingProvider {

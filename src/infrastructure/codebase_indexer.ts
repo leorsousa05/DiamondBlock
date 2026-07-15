@@ -130,13 +130,24 @@ export class CodebaseIndexer {
 
   private async computeHashes(files: SourceFile[]): Promise<Map<string, string>> {
     const hashes = new Map<string, string>();
-    await Promise.all(
-      files.map(async (file) => {
-        const content = await readFile(file.absolutePath, 'utf-8');
-        const hash = createHash('sha256').update(content).digest('hex');
-        hashes.set(file.relativePath, hash);
-      })
-    );
+    const concurrency = 20;
+    let index = 0;
+
+    const workers = Array.from({ length: Math.min(concurrency, files.length) }, async () => {
+      while (index < files.length) {
+        const file = files[index++];
+        if (!file) continue;
+        try {
+          const content = await readFile(file.absolutePath, 'utf-8');
+          const hash = createHash('sha256').update(content).digest('hex');
+          hashes.set(file.relativePath, hash);
+        } catch (error) {
+          // ignore or log
+        }
+      }
+    });
+
+    await Promise.all(workers);
     return hashes;
   }
 
@@ -187,19 +198,16 @@ export class CodebaseIndexer {
   }
 
   private async removeChunks(chunkIds: string[]): Promise<void> {
-    await Promise.all(
-      chunkIds.map(async (id) => {
-        try {
-          await this.options.codebaseChunkRepository.delete(id);
-        } catch (error) {
-          console.warn(`Failed to delete chunk ${id}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-        try {
-          await this.options.vectorIndex.remove(id);
-        } catch (error) {
-          console.warn(`Failed to remove vector ${id}: ${error instanceof Error ? error.message : String(error)}`);
-        }
-      })
-    );
+    if (chunkIds.length === 0) return;
+    try {
+      await this.options.codebaseChunkRepository.deleteAll(chunkIds);
+    } catch (error) {
+      console.warn(`Failed to delete chunks: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    try {
+      await this.options.vectorIndex.removeBatch(chunkIds);
+    } catch (error) {
+      console.warn(`Failed to remove vectors: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

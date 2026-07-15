@@ -18,6 +18,10 @@ class FakeEmbeddingProvider {
     return Array.from({ length: 384 }, () => Math.random());
   }
 
+  async embedBatch(texts: string[]): Promise<number[][]> {
+    return texts.map(() => Array.from({ length: 384 }, () => Math.random()));
+  }
+
   async isAvailable(): Promise<boolean> {
     return true;
   }

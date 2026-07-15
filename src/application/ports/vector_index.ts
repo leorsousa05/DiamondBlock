@@ -21,5 +21,6 @@ export interface VectorIndex {
   indexBatch(items: Array<{ item: VectorIndexable; embedding: number[] }>): Promise<void>;
   search(embedding: number[], limit: number, options?: VectorSearchOptions): Promise<SearchResult[]>;
   remove(id: string): Promise<void>;
+  removeBatch(ids: string[]): Promise<void>;
   close?(): Promise<void>;
 }
